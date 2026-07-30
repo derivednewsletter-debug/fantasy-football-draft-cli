@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Recommendations{% endblock %}
+
+{% block content %}
+<div class="p-lg space-y-lg max-w-4xl mx-auto">
+    <div class="flex items-center justify-between">
+        <h2 class="font-headline-lg text-headline-lg text-on-surface">Draft Recommendations</h2>
+        <a href="/api/ai-recommend" class="bg-secondary text-on-secondary px-md py-sm rounded font-bold text-sm hover:opacity-80 flex items-center gap-sm">
+            <span class="material-symbols-outlined text-sm" data-icon="auto_awesome">auto_awesome</span>
+            AI View
+        </a>
+    </div>
+
+    <!-- AI Recommendations -->
+    {% if ai_recs %}
+    <div class="bg-surface-container rounded-xl border border-secondary/30 p-lg">
+        <h3 class="font-headline-md text-headline-md text-secondary flex items-center gap-sm mb-md">
+            <span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+            AI Nemotron Analysis
+        </h3>
+
+        {% if ai_recs.ai_analysis %}
+        <p class="font-body-md text-on-surface-variant italic mb-lg">{{ ai_recs.ai_analysis }}</p>
+        {% endif %}
+
+        {% if ai_recs.ai_top_target %}
+        <div class="bg-surface-container-low border border-secondary/30 rounded-lg p-md mb-md">
+            <span class="font-label-caps text-[10px] text-secondary">🎯 TOP TARGET</span>
+            <div class="flex items-center gap-sm mt-sm">
+                <div class="w-12 h-12 rounded-lg bg-secondary/20 flex items-center justify-center font-bold text-lg text-secondary">{{ ai_recs.ai_top_target.position }}</div>
+                <div>
+                    <p class="font-bold text-on-surface">{{ ai_recs.ai_top_target.name }}</p>
+                    <p class="text-xs text-outline">{{ ai_recs.ai_top_target.position }} · {{ ai_recs.ai_top_target.team }}</p>
+                </div>
+            </div>
+            {% if ai_recs.ai_top_target.rationale %}
+            <p class="text-xs text-on-surface-variant mt-sm">{{ ai_recs.ai_top_target.rationale }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-md">
+            <!-- Safe Picks -->
+            <div class="bg-surface-container-low border border-outline-variant rounded-lg p-md">
+                <h4 class="font-label-caps text-[10px] text-primary mb-sm">🛡️ SAFE FLOOR</h4>
+                {% for p in ai_recs.ai_safe_picks %}
+                <div class="mb-sm">
+                    <p class="font-bold text-sm text-on-surface">{{ p.name }}</p>
+                    <p class="text-[10px] text-outline">{{ p.position }} · {{ p.team }}</p>
+                    {% if p.rationale %}<p class="text-[10px] text-on-surface-variant mt-xs italic">{{ p.rationale }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <!-- Upside Picks -->
+            <div class="bg-surface-container-low border border-outline-variant rounded-lg p-md">
+                <h4 class="font-label-caps text-[10px] text-secondary mb-sm">⚡ HIGH UPSIDE</h4>
+                {% for p in ai_recs.ai_upside_picks %}
+                <div class="mb-sm">
+                    <p class="font-bold text-sm text-on-surface">{{ p.name }}</p>
+                    <p class="text-[10px] text-outline">{{ p.position }} · {{ p.team }}</p>
+                    {% if p.rationale %}<p class="text-[10px] text-on-surface-variant mt-xs italic">{{ p.rationale }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <!-- Sleepers -->
+            <div class="bg-surface-container-low border border-outline-variant rounded-lg p-md">
+                <h4 class="font-label-caps text-[10px] text-tertiary mb-sm">💤 SLEEPERS</h4>
+                {% for p in ai_recs.ai_sleepers %}
+                <div class="mb-sm">
+                    <p class="font-bold text-sm text-on-surface">{{ p.name }}</p>
+                    <p class="text-[10px] text-outline">{{ p.position }} · {{ p.team }}</p>
+                    {% if p.rationale %}<p class="text-[10px] text-on-surface-variant mt-xs italic">{{ p.rationale }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- VBD Recommendations -->
+    {% if recs %}
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+        <h3 class="font-headline-md text-headline-md text-primary flex items-center gap-sm mb-md">
+            <span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+            VBD Analytics
+        </h3>
+        <p class="font-label-caps text-label-caps text-outline mb-lg">{{ recs.picks_before_user }} pick(s) until your next turn</p>
+
+        <div class="space-y-lg">
+            <!-- Safe Picks -->
+            <div>
+                <h4 class="font-label-caps text-label-caps text-primary mb-sm">🛡️ TOP SAFE PICKS</h4>
+                {% for r in recs.safe_picks %}
+                <div class="bg-surface-container-low rounded-lg p-md mb-sm border border-outline-variant">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-bold text-on-surface">{{ r.name }}</p>
+                            <p class="text-xs text-outline">{{ r.position }} · {{ r.team if r.team else 'NFL' }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-data-numeral text-primary">VBD: {{ r.vbd }}</p>
+                            <p class="font-data-numeral text-on-surface-variant text-xs">Proj: {{ "%.0f"|format(r.projected_points) }}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-on-surface-variant mt-xs">Gone: {{ r.turn_loss_pct }}%</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Upside Picks -->
+            <div>
+                <h4 class="font-label-caps text-label-caps text-secondary mb-sm">⚡ TOP UPSIDE PICKS</h4>
+                {% for r in recs.upside_picks %}
+                <div class="bg-surface-container-low rounded-lg p-md mb-sm border border-outline-variant">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-bold text-on-surface">{{ r.name }}</p>
+                            <p class="text-xs text-outline">{{ r.position }} · ADP: {{ "%.1f"|format(r.adp) }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-data-numeral text-secondary">Proj: {{ "%.0f"|format(r.projected_points) }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Sleepers -->
+            <div>
+                <h4 class="font-label-caps text-label-caps text-tertiary mb-sm">💤 TOP SLEEPERS</h4>
+                {% for r in recs.sleepers %}
+                <div class="bg-surface-container-low rounded-lg p-md mb-sm border border-outline-variant">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-bold text-on-surface">{{ r.name }}</p>
+                            <p class="text-xs text-outline">{{ r.position }} · ADP: {{ "%.1f"|format(r.adp) }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-data-numeral text-tertiary">Proj: {{ "%.0f"|format(r.projected_points) }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

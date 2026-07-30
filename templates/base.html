@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DraftElite Pro | {% block title %}Draft Room{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    body { background-color: #020617; color: #dae2fd; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #0b1326; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+    .zebra-stripe:nth-child(even) { background-color: #131c2e; }
+    .zebra-stripe:nth-child(odd) { background-color: #0f172a; }
+    .zebra-light:nth-child(even) { background-color: #0F172A; }
+    .zebra-light:nth-child(odd) { background-color: #131C2E; }
+    .stadium-glow { box-shadow: 0 0 20px rgba(104, 219, 169, 0.05); }
+    .fade-in { animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+    .slide-in { animation: slideIn 0.3s ease-out; }
+    @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 8px rgba(78, 222, 163, 0.1); } 50% { box-shadow: 0 0 20px rgba(78, 222, 163, 0.25); } }
+    .on-clock-glow { animation: pulse-glow 2s ease-in-out infinite; }
+    .flash-message { animation: fadeIn 0.3s ease-out; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b1326; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    [x-cloak] { display: none !important; }
+</style>
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "on-secondary-fixed-variant": "#005236",
+                    "secondary-fixed-dim": "#4edea3",
+                    "surface-container-lowest": "#060e20",
+                    "on-tertiary-fixed-variant": "#005137",
+                    "surface-container": "#171f33",
+                    "secondary-container": "#00a572",
+                    "on-primary-fixed": "#002114",
+                    "outline": "#87948b",
+                    "error": "#ffb4ab",
+                    "primary-container": "#25a475",
+                    "inverse-on-surface": "#283044",
+                    "secondary-fixed": "#6ffbbe",
+                    "on-tertiary-container": "#003120",
+                    "surface-container-low": "#131b2e",
+                    "inverse-primary": "#006c4a",
+                    "surface-variant": "#2d3449",
+                    "tertiary-fixed": "#68fcbf",
+                    "surface-container-highest": "#2d3449",
+                    "surface-dim": "#0b1326",
+                    "surface-bright": "#31394d",
+                    "error-container": "#93000a",
+                    "inverse-surface": "#dae2fd",
+                    "on-tertiary": "#003825",
+                    "on-primary-container": "#00311f",
+                    "secondary": "#4edea3",
+                    "on-background": "#dae2fd",
+                    "on-secondary-fixed": "#002113",
+                    "surface-container-high": "#222a3d",
+                    "on-error-container": "#ffdad6",
+                    "on-primary": "#003825",
+                    "background": "#0b1326",
+                    "on-primary-fixed-variant": "#005137",
+                    "on-secondary-container": "#00311f",
+                    "surface": "#0b1326",
+                    "on-error": "#690005",
+                    "primary-fixed-dim": "#68dba9",
+                    "tertiary-fixed-dim": "#45dfa4",
+                    "tertiary": "#45dfa4",
+                    "on-surface-variant": "#bccac0",
+                    "primary": "#68dba9",
+                    "primary-fixed": "#85f8c4",
+                    "on-surface": "#dae2fd",
+                    "on-tertiary-fixed": "#002114",
+                    "outline-variant": "#3d4a42",
+                    "tertiary-container": "#00a574",
+                    "on-secondary": "#003824",
+                    "surface-tint": "#68dba9"
+                },
+                borderRadius: {
+                    DEFAULT: "0.125rem",
+                    lg: "0.25rem",
+                    xl: "0.5rem",
+                    full: "0.75rem"
+                },
+                spacing: {
+                    xs: "4px",
+                    md: "16px",
+                    container_max: "1440px",
+                    gutter: "16px",
+                    sm: "8px",
+                    base: "4px",
+                    xl: "48px",
+                    lg: "24px"
+                },
+                fontFamily: {
+                    "headline-lg-mobile": ["Archivo Narrow"],
+                    "label-caps": ["JetBrains Mono"],
+                    "headline-md": ["Archivo Narrow"],
+                    "headline-lg": ["Archivo Narrow"],
+                    "data-numeral": ["JetBrains Mono"],
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-xl": ["Archivo Narrow"],
+                    "body-sm": ["Inter"]
+                },
+                fontSize: {
+                    "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                    "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                    "headline-md": ["20px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "data-numeral": ["14px", {"lineHeight": "1", "fontWeight": "500"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "body-md": ["15px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "headline-xl": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-sm": ["13px", {"lineHeight": "1.4", "fontWeight": "400"}]
+                }
+            }
+        }
+    }
+</script>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary selection:text-on-primary">
+<div class="flex h-screen overflow-hidden">
+    <!-- SideNav -->
+    <aside class="hidden md:flex flex-col h-full py-md px-sm bg-surface-container border-r border-outline-variant w-64 shrink-0">
+        <div class="mb-xl px-sm">
+            <a href="/" class="font-headline-md text-headline-md font-black text-primary tracking-tighter uppercase">DraftElite Pro</a>
+            <div class="mt-md p-sm bg-surface-container-high rounded-lg flex items-center gap-md">
+                <div class="w-10 h-10 rounded-full overflow-hidden bg-primary-container shrink-0 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-on-primary-container" data-icon="leaderboard">leaderboard</span>
+                </div>
+                <div class="overflow-hidden">
+                    <p class="font-label-caps text-label-caps truncate">{{ league.name if league else 'No League' }}</p>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant truncate">
+                        {% if league %}{{ league.scoring_format }} · {{ league.num_teams }} teams{% else %}Season 2024{% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 space-y-xs">
+            <a href="/" class="flex items-center gap-md px-md py-sm {% if active_page == 'draft' %}bg-secondary-container text-on-secondary-container rounded-lg font-bold translate-x-1{% else %}text-on-surface-variant hover:bg-surface-variant{% endif %} transition-all font-label-caps text-label-caps">
+                <span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
+                <span>Draft Room</span>
+            </a>
+            <a href="/my-team" class="flex items-center gap-md px-md py-sm {% if active_page == 'team' %}bg-secondary-container text-on-secondary-container rounded-lg font-bold translate-x-1{% else %}text-on-surface-variant hover:bg-surface-variant{% endif %} transition-all font-label-caps text-label-caps">
+                <span class="material-symbols-outlined" data-icon="group">group</span>
+                <span>My Team</span>
+            </a>
+            <a href="/leagues" class="flex items-center gap-md px-md py-sm {% if active_page == 'leagues' %}bg-secondary-container text-on-secondary-container rounded-lg font-bold translate-x-1{% else %}text-on-surface-variant hover:bg-surface-variant{% endif %} transition-all font-label-caps text-label-caps">
+                <span class="material-symbols-outlined" data-icon="format_list_numbered">format_list_numbered</span>
+                <span>Leagues</span>
+            </a>
+            <a href="/standings" class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant transition-all font-label-caps text-label-caps">
+                <span class="material-symbols-outlined" data-icon="swap_horizontal_circle">swap_horizontal_circle</span>
+                <span>Standings</span>
+            </a>
+        </nav>
+        <div class="mt-auto space-y-xs pt-md border-t border-outline-variant">
+            <button onclick="window.location.href='/'" class="w-full bg-primary text-on-primary font-bold py-md rounded-lg hover:opacity-90 transition-opacity mb-md flex items-center justify-center gap-sm">
+                <span class="material-symbols-outlined" data-icon="bolt">bolt</span>
+                Live Draft
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-surface-dim">
+        <!-- Top Nav -->
+        <header class="sticky top-0 z-50 bg-surface-dim border-b border-outline-variant h-16 flex justify-between items-center px-lg w-full shrink-0">
+            <div class="flex items-center gap-lg">
+                <h1 class="font-headline-lg text-headline-lg font-bold text-primary tracking-tighter md:hidden">DEP</h1>
+                <div class="hidden lg:flex items-center gap-md bg-surface-container-low px-md py-xs rounded-lg border border-outline-variant w-80">
+                    <span class="material-symbols-outlined text-outline" data-icon="search">search</span>
+                    <input class="bg-transparent border-none focus:ring-0 text-body-sm w-full text-on-surface placeholder:text-outline" placeholder="Search players..." type="text" id="playerSearch" oninput="filterPlayers(this.value)"/>
+                </div>
+            </div>
+            <nav class="hidden md:flex gap-lg">
+                <a class="font-body-md {% if active_page == 'draft' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/">Draft Room</a>
+                <a class="font-body-md {% if active_page == 'team' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/my-team">My Team</a>
+                <a class="font-body-md text-on-surface-variant font-medium hover:text-primary-fixed transition-colors duration-200" href="/leagues">Leagues</a>
+                <a class="font-body-md text-on-surface-variant font-medium hover:text-primary-fixed transition-colors duration-200" href="/standings">Standings</a>
+            </nav>
+            <div class="flex items-center gap-md">
+                <a href="/leagues" class="text-on-surface-variant hover:text-primary transition-colors" title="Switch League">
+                    <span class="material-symbols-outlined" data-icon="refresh">refresh</span>
+                </a>
+                <div class="w-8 h-8 rounded-full bg-secondary-container overflow-hidden flex items-center justify-center">
+                    <span class="material-symbols-outlined text-on-secondary-container text-sm" data-icon="person">person</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="px-lg pt-md">
+            {% for category, message in messages %}
+            <div class="flash-message px-md py-sm rounded-lg {% if category == 'error' %}bg-error-container text-on-error-container{% else %}bg-secondary-container/20 text-secondary border border-secondary/20{% endif %} font-body-sm flex items-center gap-sm">
+                <span class="material-symbols-outlined text-sm" data-icon="{% if category == 'error' %}error{% else %}check_circle{% endif %}">{{ 'error' if category == 'error' else 'check_circle' }}</span>
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Page Content -->
+        <div class="flex-1 overflow-y-auto">
+            {% block content %}{% endblock %}
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-surface-container-lowest border-t border-outline-variant shrink-0">
+            <div class="flex flex-col md:flex-row justify-between items-center w-full px-lg py-md gap-md">
+                <span class="font-label-caps text-label-caps text-on-surface uppercase tracking-widest">DraftElite Pro</span>
+                <div class="flex gap-lg">
+                    <a class="font-label-caps text-label-caps text-outline hover:text-secondary transition-colors" href="#">League Settings</a>
+                    <a class="font-label-caps text-label-caps text-outline hover:text-secondary transition-colors" href="#">Help Center</a>
+                    <a class="font-label-caps text-label-caps text-outline hover:text-secondary transition-colors" href="#">API Docs</a>
+                    <a class="font-label-caps text-label-caps text-outline hover:text-secondary transition-colors" href="#">Privacy Policy</a>
+                </div>
+                <p class="font-body-sm text-body-sm text-outline">© 2024 DraftElite Pro. All Rights Reserved.</p>
+            </div>
+        </footer>
+    </main>
+</div>
+
+<!-- Mobile Bottom Nav -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-dim border-t border-outline-variant grid grid-cols-4 items-center z-50">
+    <a href="/" class="flex flex-col items-center justify-center {% if active_page == 'draft' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
+        <span class="text-[10px] font-label-caps">DRAFT</span>
+    </a>
+    <a href="/my-team" class="flex flex-col items-center justify-center {% if active_page == 'team' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined" data-icon="group">group</span>
+        <span class="text-[10px] font-label-caps">TEAM</span>
+    </a>
+    <a href="/leagues" class="flex flex-col items-center justify-center text-on-surface-variant">
+        <span class="material-symbols-outlined" data-icon="format_list_numbered">format_list_numbered</span>
+        <span class="text-[10px] font-label-caps">LEAGUES</span>
+    </a>
+    <a href="/standings" class="flex flex-col items-center justify-center text-on-surface-variant">
+        <span class="material-symbols-outlined" data-icon="swap_horizontal_circle">swap_horizontal_circle</span>
+        <span class="text-[10px] font-label-caps">WIRE</span>
+    </a>
+</nav>
+
+<script>
+    // Row hover effects
+    document.querySelectorAll('.hover-highlight').forEach(row => {
+        row.addEventListener('mouseenter', () => {
+            row.style.boxShadow = 'inset 4px 0 0 #68dba9';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.boxShadow = 'none';
+        });
+    });
+
+    // Player search filter
+    function filterPlayers(query) {
+        document.querySelectorAll('.player-row').forEach(row => {
+            const name = row.getAttribute('data-name')?.toLowerCase() || '';
+            row.style.display = name.includes(query.toLowerCase()) ? '' : 'none';
+        });
+    }
+
+    // Auto-refresh for draft state
+    {% if auto_refresh and auto_refresh > 0 %}
+    setTimeout(() => { window.location.reload(); }, {{ auto_refresh * 1000 }});
+    {% endif %}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

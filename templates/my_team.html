@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}My Team{% endblock %}
+
+{% block content %}
+{% if not league %}
+<div class="p-lg flex items-center justify-center h-full">
+    <div class="text-center p-lg bg-surface-container rounded-xl border border-outline-variant max-w-md">
+        <span class="material-symbols-outlined text-4xl text-outline block mb-sm" data-icon="sports_football">sports_football</span>
+        <p class="text-on-surface-variant mb-md">No active league selected.</p>
+        <a href="/leagues" class="bg-primary text-on-primary px-lg py-sm rounded font-bold">Select a League</a>
+    </div>
+</div>
+{% else %}
+{% set team = league.user_team %}
+{% set starters = team.roster[:team.starting_slots_count] %}
+{% set bench = team.roster[team.starting_slots_count:] %}
+
+<div class="p-lg space-y-lg">
+    <!-- Hero: Team Summary -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-lg">
+        <div class="lg:col-span-8 bg-surface-container rounded-xl border border-outline-variant p-lg">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="font-label-caps text-on-surface-variant mb-xs">YOUR TEAM</p>
+                    <h2 class="font-headline-xl text-headline-xl text-secondary">{{ team.name }}</h2>
+                    <p class="font-body-md text-on-surface-variant">{{ team.roster|length }} players drafted · {{ league.scoring_format }}</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-label-caps text-label-caps text-on-surface-variant">OVERALL PICK #{{ league.overall_pick }}</p>
+                    <p class="font-headline-md text-headline-md text-primary">Round {{ league.current_round }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="lg:col-span-4 grid grid-cols-2 gap-md">
+            <div class="bg-surface-container rounded-xl border border-outline-variant p-md text-center">
+                <p class="font-label-caps text-[10px] text-outline">STARTERS</p>
+                <p class="font-headline-lg text-headline-lg text-primary">{{ starters|length }}</p>
+            </div>
+            <div class="bg-surface-container rounded-xl border border-outline-variant p-md text-center">
+                <p class="font-label-caps text-[10px] text-outline">BENCH</p>
+                <p class="font-headline-lg text-headline-lg text-on-surface">{{ bench|length }}</p>
+            </div>
+            <div class="bg-surface-container rounded-xl border border-outline-variant p-md text-center">
+                <p class="font-label-caps text-[10px] text-outline">ROSTER</p>
+                <p class="font-headline-lg text-headline-lg text-secondary">{{ team.roster|length }}/{{ team.total_slots }}</p>
+            </div>
+            <div class="bg-surface-container rounded-xl border border-outline-variant p-md text-center">
+                <p class="font-label-caps text-[10px] text-outline">TO DRAFT</p>
+                <p class="font-headline-lg text-headline-lg text-tertiary">{{ team.total_slots - team.roster|length }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Roster Table -->
+    <section class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+        <div class="px-lg py-md bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
+            <h3 class="font-headline-md text-headline-md flex items-center gap-sm">
+                ROSTER
+                <span class="text-body-sm text-outline font-normal">Starters · {{ league.scoring_format }}</span>
+            </h3>
+        </div>
+
+        {% if team.roster %}
+        <!-- Table Header -->
+        <div class="grid grid-cols-12 px-lg py-sm border-b border-outline-variant bg-surface-container-low">
+            <div class="col-span-1 font-label-caps text-[10px] text-outline">SLOT</div>
+            <div class="col-span-4 font-label-caps text-[10px] text-outline">PLAYER</div>
+            <div class="col-span-1 font-label-caps text-[10px] text-outline text-center">POS</div>
+            <div class="col-span-1 font-label-caps text-[10px] text-outline text-center">NFL</div>
+            <div class="col-span-1 font-label-caps text-[10px] text-outline text-right">PROJ</div>
+            <div class="col-span-1 font-label-caps text-[10px] text-outline text-right">ADP</div>
+            <div class="col-span-1 font-label-caps text-[10px] text-outline text-center">TIER</div>
+            <div class="col-span-2 font-label-caps text-[10px] text-outline text-right">STATUS</div>
+        </div>
+
+        <!-- Starter Rows -->
+        <div class="zebra-light">
+            {% for player in starters %}
+            {% set pos_css = {'QB':'text-secondary-container','RB':'text-secondary','WR':'text-primary','TE':'text-tertiary','K':'text-on-surface-variant','DST':'text-primary-fixed'}[player.position] %}
+            {% set pos_bg = {'QB':'bg-secondary-container/10','RB':'bg-secondary/10','WR':'bg-primary/10','TE':'bg-tertiary/10','K':'bg-surface-variant','DST':'bg-primary-fixed/10'}[player.position] %}
+            <div class="grid grid-cols-12 px-lg py-md items-center hover:bg-surface-container-highest transition-colors hover-highlight">
+                <div class="col-span-1 font-label-caps text-primary text-xs">ST</div>
+                <div class="col-span-4 flex items-center gap-md">
+                    <div class="w-9 h-9 rounded {{ pos_bg }} flex items-center justify-center shrink-0">
+                        <span class="font-label-caps text-label-caps {{ pos_css }}">{{ player.position }}</span>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="font-bold text-on-surface text-sm truncate">{{ player.name }}</p>
+                        <p class="text-[10px] text-outline">{{ player.team }}</p>
+                    </div>
+                </div>
+                <div class="col-span-1 text-center font-label-caps {{ pos_css }}">{{ player.position }}</div>
+                <div class="col-span-1 text-center font-data-numeral text-on-surface-variant text-sm">{{ player.team }}</div>
+                <div class="col-span-1 text-right font-data-numeral text-on-surface text-sm">{{ "%.0f"|format(player.projected_points) }}</div>
+                <div class="col-span-1 text-right font-data-numeral text-on-surface-variant text-sm">{{ "%.1f"|format(player.adp) if player.adp < 999 else '—' }}</div>
+                <div class="col-span-1 text-center">
+                    <span class="bg-primary/10 text-primary text-[10px] px-sm py-[1px] rounded">T{{ player.tier }}</span>
+                </div>
+                <div class="col-span-2 text-right">
+                    <span class="bg-emerald-500/10 text-emerald-400 font-label-caps text-[10px] px-sm py-1 rounded border border-emerald-500/20">ACTIVE</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Bench Header -->
+        <div class="px-lg py-md bg-surface-container-high border-y border-outline-variant">
+            <h3 class="font-label-caps text-label-caps text-outline">BENCH / RESERVE</h3>
+        </div>
+
+        <!-- Bench Rows -->
+        <div class="zebra-light opacity-70">
+            {% for player in bench %}
+            {% set pos_css = {'QB':'text-secondary-container','RB':'text-secondary','WR':'text-primary','TE':'text-tertiary','K':'text-on-surface-variant','DST':'text-primary-fixed'}[player.position] %}
+            {% set pos_bg = {'QB':'bg-secondary-container/10','RB':'bg-secondary/10','WR':'bg-primary/10','TE':'bg-tertiary/10','K':'bg-surface-variant','DST':'bg-primary-fixed/10'}[player.position] %}
+            <div class="grid grid-cols-12 px-lg py-md items-center hover:opacity-100 transition-opacity hover-highlight">
+                <div class="col-span-1 font-label-caps text-outline text-xs">BN</div>
+                <div class="col-span-4 flex items-center gap-md">
+                    <div class="w-9 h-9 rounded {{ pos_bg }} flex items-center justify-center shrink-0">
+                        <span class="font-label-caps text-label-caps {{ pos_css }}">{{ player.position }}</span>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="font-bold text-on-surface text-sm truncate">{{ player.name }}</p>
+                        <p class="text-[10px] text-outline">{{ player.team }}</p>
+                    </div>
+                </div>
+                <div class="col-span-1 text-center font-label-caps {{ pos_css }}">{{ player.position }}</div>
+                <div class="col-span-1 text-center font-data-numeral text-on-surface-variant text-sm">{{ player.team }}</div>
+                <div class="col-span-1 text-right font-data-numeral text-on-surface text-sm">{{ "%.0f"|format(player.projected_points) }}</div>
+                <div class="col-span-1 text-right font-data-numeral text-on-surface-variant text-sm">{{ "%.1f"|format(player.adp) if player.adp < 999 else '—' }}</div>
+                <div class="col-span-1 text-center">
+                    <span class="bg-surface-variant text-on-surface-variant text-[10px] px-sm py-[1px] rounded">T{{ player.tier }}</span>
+                </div>
+                <div class="col-span-2 text-right">
+                    <span class="bg-slate-500/10 text-slate-400 font-label-caps text-[10px] px-sm py-1 rounded border border-slate-500/20">BENCH</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-lg text-center">
+            <span class="material-symbols-outlined text-3xl text-outline block mb-sm" data-icon="person_add">person_add</span>
+            <p class="text-on-surface-variant">Your roster is empty. Head to the <a href="/" class="text-primary hover:underline">Draft Room</a> to start drafting!</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Position Breakdown -->
+    {% if team.roster %}
+    <section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-md">
+        {% for pos in ['QB','RB','WR','TE','FLEX','K','DST'] %}
+        {% set slot_needed = league.roster_slots.get(pos, 0) %}
+        {% set pos_count = team.roster_count_by_position(pos) if pos != 'FLEX' else starters|selectattr('position', 'in', ['RB','WR','TE']|list)|list|length %}
+        {% set pct = (pos_count / slot_needed * 100)|int if slot_needed > 0 else 0 %}
+        <div class="bg-surface-container rounded-xl border border-outline-variant p-md text-center">
+            <p class="font-label-caps text-label-caps {% if pos == 'QB' %}text-secondary-container{% elif pos == 'RB' %}text-secondary{% elif pos == 'WR' %}text-primary{% elif pos == 'TE' %}text-tertiary{% elif pos == 'FLEX' %}text-primary-fixed{% else %}text-on-surface-variant{% endif %}">{{ pos }}</p>
+            <p class="font-headline-md text-headline-md text-on-surface mt-xs">{{ pos_count }}</p>
+            <p class="font-body-sm text-outline">/ {{ slot_needed }}</p>
+            <div class="h-1 bg-surface-variant rounded-full mt-sm overflow-hidden">
+                <div class="h-full bg-secondary rounded-full" style="width: {{ pct if pct <= 100 else 100 }}%"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}Draft Room{% endblock %}
+
+{% block content %}
+{% set is_user = league and league.is_user_on_clock %}
+{% set on_clock = league.team_on_clock if league else 1 %}
+{% set avail_count = league.available_players|length if league else 0 %}
+
+<!-- ===== ON THE CLOCK BANNER ===== -->
+<section class="p-lg grid grid-cols-1 md:grid-cols-12 gap-lg relative z-10">
+    <div class="md:col-span-4 bg-surface-container border border-primary-container p-md rounded-xl stadium-glow flex items-center gap-lg {% if is_user %}on-clock-glow{% endif %}">
+        <div class="relative">
+            <div class="w-16 h-16 rounded-full border-2 {% if is_user %}border-secondary{% else %}border-primary{% endif %} flex items-center justify-center">
+                <span class="font-headline-xl text-headline-xl font-black {% if is_user %}text-secondary{% else %}text-primary{% endif %}">
+                    {{ 'T' ~ on_clock }}
+                </span>
+            </div>
+            <div class="absolute -bottom-1 -right-1 bg-primary text-on-primary font-bold text-[10px] px-xs rounded">
+                {{ league.current_round if league else 1 }}.{{ league.current_pick_in_round if league else 1 }}
+            </div>
+        </div>
+        <div class="flex-1">
+            <p class="font-label-caps text-label-caps {% if is_user %}text-secondary{% else %}text-primary{% endif %} uppercase">
+                {% if is_user %}★ You're On the Clock!{% else %}On the Clock{% endif %}
+            </p>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface leading-tight">
+                {% if is_user %}Your Pick{% else %}Team {{ on_clock }}{% endif %}
+            </h2>
+            <p class="font-body-sm text-outline">Pick #{{ league.overall_pick if league else 1 }} · Round {{ league.current_round if league else 1 }}</p>
+        </div>
+        <div class="text-right">
+            <p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">Available</p>
+            <div class="font-data-numeral text-4xl font-bold text-secondary tracking-tighter">{{ avail_count }}</div>
+        </div>
+    </div>
+
+    <!-- Position Filter + Action Buttons -->
+    <div class="md:col-span-8 flex flex-col justify-end">
+        <div class="flex items-center justify-between mb-sm">
+            <h3 class="font-headline-md text-headline-md text-on-surface">Available Players</h3>
+            <div class="flex gap-xs">
+                <span class="bg-surface-container-high px-sm py-xs rounded border border-outline-variant font-label-caps text-[10px] text-on-surface-variant">
+                    {{ league.roster_slots.get('QB',1) }}QB · {{ league.roster_slots.get('RB',2) }}RB · {{ league.roster_slots.get('WR',2) }}WR · {{ league.roster_slots.get('TE',1) }}TE
+                </span>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-sm">
+            <button class="pos-filter px-md py-xs rounded-full bg-secondary text-on-secondary font-label-caps text-label-caps" data-pos="ALL">ALL</button>
+            <button class="pos-filter px-md py-xs rounded-full border border-outline-variant hover:border-primary transition-colors font-label-caps text-label-caps" data-pos="QB">QB</button>
+            <button class="pos-filter px-md py-xs rounded-full border border-outline-variant hover:border-primary transition-colors font-label-caps text-label-caps" data-pos="RB">RB</button>
+            <button class="pos-filter px-md py-xs rounded-full border border-outline-variant hover:border-primary transition-colors font-label-caps text-label-caps" data-pos="WR">WR</button>
+            <button class="pos-filter px-md py-xs rounded-full border border-outline-variant hover:border-primary transition-colors font-label-caps text-label-caps" data-pos="TE">TE</button>
+            <button class="pos-filter px-md py-xs rounded-full border border-outline-variant hover:border-primary transition-colors font-label-caps text-label-caps" data-pos="K">K</button>
+            <button class="pos-filter px-md py-xs rounded-full border border-outline-variant hover:border-primary transition-colors font-label-caps text-label-caps" data-pos="DST">DST</button>
+        </div>
+    </div>
+</section>
+
+<!-- ===== MAIN CONTENT: Player List + AI Sidebar ===== -->
+<section class="flex-1 px-lg pb-lg overflow-hidden relative z-10">
+    <div class="h-full flex gap-lg">
+        <!-- Player List Table -->
+        <div class="flex-1 bg-surface-container border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+            <!-- Header -->
+            <div class="grid grid-cols-12 px-md py-sm bg-surface-container-high border-b border-outline-variant font-label-caps text-[11px] text-outline">
+                <div class="col-span-1">RK</div>
+                <div class="col-span-4">PLAYER</div>
+                <div class="col-span-1 text-center">POS</div>
+                <div class="col-span-1 text-center">ADP</div>
+                <div class="col-span-1 text-center">TIER</div>
+                <div class="col-span-1 text-center">PROJ</div>
+                <div class="col-span-3 text-right">DRAFT</div>
+            </div>
+
+            <!-- Body -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar" id="playerList">
+                {% if league and avail_count > 0 %}
+                    {% for player in league.available_players[:50] %}
+                    {% set pos_class = {'QB': 'text-secondary-container', 'RB': 'text-secondary', 'WR': 'text-primary', 'TE': 'text-tertiary', 'K': 'text-on-surface-variant', 'DST': 'text-primary-fixed'}[player.position] %}
+                    <div class="grid grid-cols-12 px-md py-sm items-center zebra-stripe border-b border-outline-variant/30 group hover:bg-surface-container-highest transition-colors player-row" data-name="{{ player.name }} {{ player.position }}" data-pos="{{ player.position }}">
+                        <div class="col-span-1 font-data-numeral text-on-surface-variant">{{ loop.index }}</div>
+                        <div class="col-span-4 flex items-center gap-sm">
+                            <div class="w-9 h-9 rounded bg-surface-bright flex items-center justify-center shrink-0" style="background: {{ {'QB':'#1a3a2e','RB':'#1a2a3e','WR':'#1a2e3a','TE':'#2a1a3e','K':'#2a2a2a','DST':'#1a3a3a'}[player.position] }}">
+                                <span class="font-label-caps text-label-caps {{ pos_class }}">{{ player.position }}</span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-bold text-on-surface text-sm truncate">{{ player.name }}</p>
+                                <p class="text-[10px] text-outline">{{ player.team }}</p>
+                            </div>
+                        </div>
+                        <div class="col-span-1 text-center font-label-caps {{ pos_class }}">{{ player.position }}</div>
+                        <div class="col-span-1 text-center font-data-numeral text-on-surface-variant text-sm">{{ "%.1f"|format(player.adp) if player.adp < 999 else '—' }}</div>
+                        <div class="col-span-1 text-center">
+                            <span class="bg-primary/10 text-primary text-[10px] px-sm py-[2px] rounded border border-primary/20">T{{ player.tier }}</span>
+                        </div>
+                        <div class="col-span-1 text-center font-data-numeral text-on-surface text-sm">{{ "%.0f"|format(player.projected_points) }}</div>
+                        <div class="col-span-3 text-right">
+                            {% if is_user %}
+                            <button onclick="draftPlayer(this.dataset.player)" data-player="{{ player.name|e }}" class="bg-primary text-on-primary px-md py-sm rounded font-bold text-xs hover:opacity-80 transition-all opacity-0 group-hover:opacity-100 md:opacity-60 md:hover:opacity-100">
+                                DRAFT
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="flex items-center justify-center h-full">
+                        <div class="text-center p-lg">
+                            <span class="material-symbols-outlined text-4xl text-outline block mb-sm" data-icon="sports_football">sports_football</span>
+                            <p class="text-on-surface-variant">
+                                {% if not league %}
+                                    No active league. <a href="/leagues/create" class="text-primary hover:underline">Create one</a>.
+                                {% else %}
+                                    All players drafted or draft complete!
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Smart Picks Sidebar (VBD default, AI when available) -->
+        <div class="hidden xl:flex flex-col w-80 bg-surface-container rounded-xl border border-outline-variant overflow-hidden shrink-0">
+            <div class="p-md border-b border-outline-variant">
+                <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
+                    <span class="material-symbols-outlined text-secondary" data-icon="auto_awesome">auto_awesome</span>
+                    {% if ai_recs %}AI Smart Picks{% else %}VBD Smart Picks{% endif %}
+                </h3>
+                <p class="text-xs text-outline mt-xs">
+                    {% if recs and recs.get('picks_before_user') is not none %}
+                        {{ recs.picks_before_user }} pick(s) until your next turn
+                        {% if not ai_recs %} · <a href="/api/ai-recommend" class="text-secondary hover:underline">Get AI advice</a>{% endif %}
+                    {% else %}
+                        Optimizing your roster
+                    {% endif %}
+                </p>
+            </div>
+            <div class="p-md space-y-lg flex-1 overflow-y-auto custom-scrollbar" id="aiPanel">
+                {% set active_safe = ai_recs.get('ai_safe_picks', []) if ai_recs else vbd_recs.get('safe_picks', []) %}
+                {% set active_upside = ai_recs.get('ai_upside_picks', []) if ai_recs else vbd_recs.get('upside_picks', []) %}
+                {% set active_sleepers = ai_recs.get('ai_sleepers', []) if ai_recs else vbd_recs.get('sleepers', []) %}
+
+                {% if ai_recs and ai_recs.get('ai_top_target') %}
+                {% set top = ai_recs.ai_top_target %}
+                <div class="bg-surface-container-low border border-secondary/30 rounded-lg p-md hover:border-secondary transition-all cursor-pointer slide-in">
+                    <div class="flex justify-between items-start mb-sm">
+                        <span class="font-label-caps text-[10px] text-secondary tracking-widest uppercase">🎯 Top Target</span>
+                        <span class="bg-secondary/10 text-secondary text-[10px] font-bold px-xs py-[1px] rounded">AI</span>
+                    </div>
+                    <div class="flex items-center gap-sm">
+                        <div class="w-12 h-12 rounded-lg bg-surface-bright flex items-center justify-center font-bold text-lg text-secondary">{{ top.position }}</div>
+                        <div>
+                            <p class="font-bold text-on-surface">{{ top.name }}</p>
+                            <p class="text-xs text-outline">{{ top.position }} | {{ top.team }}</p>
+                        </div>
+                    </div>
+                    {% if top.rationale %}
+                    <p class="mt-md text-xs text-on-surface-variant leading-relaxed">{{ top.rationale }}</p>
+                    {% endif %}
+                    {% if is_user %}
+                    <button onclick="draftPlayer(this.dataset.player)" data-player="{{ top.name|e }}" class="mt-sm w-full bg-secondary text-on-secondary py-sm rounded font-bold text-xs hover:opacity-80 transition-all">DRAFT NOW</button>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if active_safe %}
+                <div class="bg-surface-container-low border border-outline-variant rounded-lg p-md hover:border-primary transition-all cursor-pointer">
+                    <div class="flex justify-between items-start mb-sm">
+                        <span class="font-label-caps text-[10px] text-primary tracking-widest uppercase">🛡️ Safe Floor</span>
+                        <span class="bg-primary/10 text-primary text-[10px] font-bold px-xs py-[1px] rounded">{% if ai_recs %}AI{% else %}VBD{% endif %}</span>
+                    </div>
+                    {% for s in active_safe[:2] %}
+                    <div class="flex items-center gap-sm {% if not loop.first %}mt-sm{% endif %}">
+                        <div class="w-10 h-10 rounded bg-surface-bright flex items-center justify-center shrink-0 font-bold text-sm {% if s.position == 'QB' %}text-secondary-container{% elif s.position == 'RB' %}text-secondary{% elif s.position == 'WR' %}text-primary{% elif s.position == 'TE' %}text-tertiary{% endif %}">{{ s.position }}</div>
+                        <div class="min-w-0">
+                            <p class="font-bold text-on-surface text-sm truncate">{{ s.name }}</p>
+                            <p class="text-[10px] text-outline">{{ s.position }} · {{ s.team if s.team else 'Proj: ' ~ (s.projected_points|int if s.projected_points is defined else 0) }}</p>
+                        </div>
+                        {% if s.vbd is defined %}<span class="text-[10px] text-secondary ml-auto">VBD: {{ s.vbd }}</span>{% endif %}
+                    </div>
+                    {% if s.turn_loss_pct is defined %}<p class="text-[10px] text-on-surface-variant mt-xs">{{ s.turn_loss_pct|int }}% gone by next pick</p>{% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if active_upside %}
+                <div class="bg-surface-container-low border border-outline-variant rounded-lg p-md hover:border-primary transition-all cursor-pointer">
+                    <div class="flex justify-between items-start mb-sm">
+                        <span class="font-label-caps text-[10px] text-secondary tracking-widest uppercase">⚡ High Upside</span>
+                        <span class="bg-secondary/10 text-secondary text-[10px] font-bold px-xs py-[1px] rounded">Elite Ceiling</span>
+                    </div>
+                    {% for u in active_upside[:2] %}
+                    <div class="flex items-center gap-sm {% if not loop.first %}mt-sm{% endif %}">
+                        <div class="w-10 h-10 rounded bg-surface-bright flex items-center justify-center shrink-0 font-bold text-sm {% if u.position == 'QB' %}text-secondary-container{% elif u.position == 'RB' %}text-secondary{% elif u.position == 'WR' %}text-primary{% elif u.position == 'TE' %}text-tertiary{% endif %}">{{ u.position }}</div>
+                        <div><p class="font-bold text-on-surface text-sm">{{ u.name }}</p><p class="text-[10px] text-outline">{{ u.position }} · Proj: {{ u.projected_points|int }}</p></div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if active_sleepers %}
+                <div class="bg-surface-container-low border border-outline-variant rounded-lg p-md hover:border-tertiary transition-all cursor-pointer">
+                    <div class="flex justify-between items-start mb-sm">
+                        <span class="font-label-caps text-[10px] text-tertiary tracking-widest uppercase">💤 Sleeper Value</span>
+                        <span class="bg-tertiary/10 text-tertiary text-[10px] font-bold px-xs py-[1px] rounded">Undervalued</span>
+                    </div>
+                    {% for sl in active_sleepers[:2] %}
+                    <div class="flex items-center gap-sm {% if not loop.first %}mt-sm{% endif %}">
+                        <div class="w-10 h-10 rounded bg-surface-bright flex items-center justify-center shrink-0 font-bold text-sm {% if sl.position == 'QB' %}text-secondary-container{% elif sl.position == 'RB' %}text-secondary{% elif sl.position == 'WR' %}text-primary{% elif sl.position == 'TE' %}text-tertiary{% endif %}">{{ sl.position }}</div>
+                        <div><p class="font-bold text-on-surface text-sm">{{ sl.name }}</p><p class="text-[10px] text-outline">{{ sl.position }} · ADP: {{ sl.adp|int }}</p></div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Roster Progress -->
+            {% if league %}
+            <div class="p-md bg-surface-container-high border-t border-outline-variant">
+                <p class="font-label-caps text-[10px] text-on-surface-variant mb-sm">YOUR ROSTER PROGRESS</p>
+                {% set user_team = league.user_team %}
+                {% set total_slots = user_team.total_slots %}
+                {% set filled = user_team.roster|length %}
+                {% set pct = (filled / total_slots * 100)|int if total_slots > 0 else 0 %}
+                <div class="flex gap-[2px] h-2 mb-xs">
+                    <div class="bg-secondary" style="width: {{ pct }}%"></div>
+                    <div class="bg-surface-variant" style="width: {{ 100 - pct }}%"></div>
+                </div>
+                <div class="flex justify-between text-[10px] font-label-caps text-outline">
+                    <span>{{ filled }}/{{ total_slots }} filled</span>
+                    <span>{{ pct }}%</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- Recent Draft Picks Bar -->
+{% if league and league.draft_log %}
+<section class="px-lg pb-lg">
+    <div class="bg-surface-container border border-outline-variant rounded-xl p-md">
+        <div class="flex items-center justify-between mb-sm">
+            <h4 class="font-label-caps text-label-caps text-outline">RECENT PICKS</h4>
+            <span class="font-body-sm text-on-surface-variant">Total: {{ league.draft_log|length }}</span>
+        </div>
+        <div class="flex gap-sm overflow-x-auto custom-scrollbar py-xs">
+            {% for pick in league.draft_log[-10:]|reverse %}
+            {% set col = {'QB': 'text-secondary-container', 'RB': 'text-secondary', 'WR': 'text-primary', 'TE': 'text-tertiary', 'K': 'text-on-surface-variant', 'DST': 'text-primary-fixed'}[pick.player_position] %}
+            <div class="bg-surface-container-low border border-outline-variant rounded px-md py-sm shrink-0 text-center min-w-[90px]">
+                <p class="font-label-caps text-[10px] text-outline">#{{ pick.overall_pick }}</p>
+                <p class="font-bold text-xs text-on-surface truncate max-w-[80px]">{{ pick.player_name.split(' ')[-1] }}</p>
+                <p class="font-label-caps text-[10px] {{ col }}">{{ pick.player_position }} · T{{ pick.team_number }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- Draft Form (quick input) -->
+{% if league and league.is_active and not league.completed %}
+<div class="px-lg pb-lg">
+    <form id="draftForm" method="POST" action="/api/draft" class="flex gap-sm items-center bg-surface-container border border-outline-variant rounded-xl p-md max-w-2xl">
+        <span class="material-symbols-outlined text-outline" data-icon="edit">edit</span>
+        <input type="text" name="player_name" id="playerInput" placeholder="Type player name to draft..." autocomplete="off"
+               class="flex-1 bg-transparent border-none focus:ring-0 text-body-md text-on-surface placeholder:text-outline"
+               list="playerSuggestions"/>
+        <datalist id="playerSuggestions">
+            {% if league %}
+            {% for p in league.available_players[:20] %}
+            <option value="{{ p.name }}">{{ p.position }} · {{ p.team }}</option>
+            {% endfor %}
+            {% endif %}
+        </datalist>
+        <button type="submit" class="bg-primary text-on-primary px-lg py-sm rounded font-bold text-sm hover:opacity-80 transition-all">DRAFT</button>
+        <a href="/api/undo" class="px-md py-sm rounded border border-outline-variant text-on-surface-variant hover:text-secondary hover:border-secondary transition-all font-label-caps text-label-caps">UNDO</a>
+    </form>
+</div>
+
+<script>
+function draftPlayer(name) {
+    document.getElementById('playerInput').value = name;
+    document.getElementById('draftForm').submit();
+}
+
+// Position filter functionality
+document.querySelectorAll('.pos-filter').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.pos-filter').forEach(b => {
+            b.classList.remove('bg-secondary', 'text-on-secondary');
+            b.classList.add('border', 'border-outline-variant');
+        });
+        this.classList.add('bg-secondary', 'text-on-secondary');
+        this.classList.remove('border', 'border-outline-variant');
+
+        const pos = this.dataset.pos;
+        document.querySelectorAll('.player-row').forEach(row => {
+            if (pos === 'ALL' || row.dataset.pos === pos) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

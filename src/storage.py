@@ -9,7 +9,14 @@ from typing import Optional
 
 from src.models import League, Player
 
-LEAGUES_DIR = Path(__file__).resolve().parent.parent / "leagues"
+# On Vercel (serverless), use /tmp/leagues since the filesystem is ephemeral.
+# Locally, use the project's leagues/ directory.
+_vercel_leagues = os.environ.get("LEAGUES_DIR")
+if _vercel_leagues:
+    LEAGUES_DIR = Path(_vercel_leagues)
+else:
+    LEAGUES_DIR = Path(__file__).resolve().parent.parent / "leagues"
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 

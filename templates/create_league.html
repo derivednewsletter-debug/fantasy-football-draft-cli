@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Create League{% endblock %}
+
+{% block content %}
+<div class="p-lg max-w-2xl mx-auto">
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+        <h2 class="font-headline-lg text-headline-lg text-on-surface mb-lg">Create New League</h2>
+
+        <form method="POST" action="/leagues/create" class="space-y-md">
+            <!-- League Name -->
+            <div>
+                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-xs">LEAGUE NAME</label>
+                <input type="text" name="name" value="Home League" required
+                       class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary"/>
+            </div>
+
+            <div class="grid grid-cols-2 gap-md">
+                <!-- Number of Teams -->
+                <div>
+                    <label class="font-label-caps text-label-caps text-on-surface-variant block mb-xs">TEAMS</label>
+                    <input type="number" name="num_teams" value="12" min="2" max="32" required
+                           class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary"/>
+                </div>
+
+                <!-- Your Pick Position -->
+                <div>
+                    <label class="font-label-caps text-label-caps text-on-surface-variant block mb-xs">YOUR PICK</label>
+                    <input type="number" name="user_pick" value="1" min="1" max="32" required
+                           class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary"/>
+                </div>
+            </div>
+
+            <!-- Scoring Format -->
+            <div>
+                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-xs">SCORING FORMAT</label>
+                <select name="scoring_format" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option value="PPR">PPR</option>
+                    <option value="0.5_PPR">0.5 PPR (Half-PPR)</option>
+                    <option value="Standard">Standard (Non-PPR)</option>
+                    <option value="2QB/Superflex">2QB / Superflex</option>
+                </select>
+            </div>
+
+            <button type="submit" class="w-full bg-primary text-on-primary font-bold py-md rounded-lg hover:opacity-90 transition-all flex items-center justify-center gap-sm">
+                <span class="material-symbols-outlined" data-icon="bolt">bolt</span>
+                Create & Start Draft
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
