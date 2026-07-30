@@ -193,9 +193,17 @@
                 <a href="/leagues" class="text-on-surface-variant hover:text-primary transition-colors" title="Switch League">
                     <span class="material-symbols-outlined" data-icon="refresh">refresh</span>
                 </a>
-                <div class="w-8 h-8 rounded-full bg-secondary-container overflow-hidden flex items-center justify-center">
-                    <span class="material-symbols-outlined text-on-secondary-container text-sm" data-icon="person">person</span>
+                {% if user and user.logged_in %}
+                <div class="hidden sm:flex items-center gap-sm bg-surface-container-high px-sm py-xs rounded-lg border border-outline-variant">
+                    <span class="material-symbols-outlined text-secondary text-sm" data-icon="person">person</span>
+                    <span class="font-body-sm text-on-surface-variant text-sm max-w-[120px] truncate">{{ user.email }}</span>
                 </div>
+                <a href="/logout" class="text-on-surface-variant hover:text-error transition-colors" title="Sign Out">
+                    <span class="material-symbols-outlined" data-icon="logout">logout</span>
+                </a>
+                {% else %}
+                <a href="/login" class="bg-primary text-on-primary px-md py-sm rounded font-bold text-xs hover:opacity-80 transition-all">Sign In</a>
+                {% endif %}
             </div>
         </header>
 

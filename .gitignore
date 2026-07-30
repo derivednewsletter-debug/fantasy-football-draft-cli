@@ -5,6 +5,10 @@
 leagues/*
 !leagues/.gitkeep
 
+# User data (per-user league files, excluded for security)
+users/*
+!users/.gitkeep
+
 # Python cache
 __pycache__/
 *.pyc

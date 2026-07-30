@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Sign Up{% endblock %}
+{% block content %}
+<div class="min-h-full flex items-center justify-center p-lg">
+    <div class="w-full max-w-md bg-surface-container rounded-xl border border-outline-variant p-lg">
+        <div class="text-center mb-lg">
+            <span class="font-headline-xl text-headline-xl font-black text-primary tracking-tighter">DraftElite</span>
+            <p class="font-body-md text-on-surface-variant mt-sm">Create your account</p>
+        </div>
+        <form method="POST" action="/signup" class="space-y-md">
+            <div>
+                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-xs">EMAIL</label>
+                <input type="email" name="email" required
+                       class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary"
+                       placeholder="you@example.com"/>
+            </div>
+            <div>
+                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-xs">PASSWORD</label>
+                <input type="password" name="password" required minlength="6"
+                       class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary"
+                       placeholder="At least 6 characters"/>
+            </div>
+            <p class="font-body-sm text-outline">By signing up, you agree to be the champion of your league.</p>
+            <button type="submit" class="w-full bg-secondary text-on-secondary font-bold py-md rounded-lg hover:opacity-90 transition-all flex items-center justify-center gap-sm">
+                <span class="material-symbols-outlined" data-icon="person_add">person_add</span>
+                Create Account
+            </button>
+        </form>
+        <p class="text-center font-body-sm text-on-surface-variant mt-md">
+            Already have an account?
+            <a href="/login" class="text-primary hover:underline font-bold">Sign in</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

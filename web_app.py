@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from functools import wraps
 from pathlib import Path
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -11,8 +12,15 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 # Ensure project root is on path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from src.auth import create_user, verify_user
 from src.models import League, ROSTER_PRESETS
-from src.storage import save_league, load_league, list_leagues, load_player_data
+from src.storage import (
+    save_league,
+    load_league,
+    list_leagues,
+    load_player_data,
+    set_user_leagues_dir,
+)
 from src.engine import recommend, recommend_ai, build_draft_matrix
 
 app = Flask(__name__)
@@ -22,8 +30,29 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24).hex()
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Auth helpers
 # ---------------------------------------------------------------------------
+
+def login_required(f):
+    """Decorator — redirect unauthenticated users to /login."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_email" not in session:
+            flash("Please sign in to access that page.", "error")
+            return redirect(url_for("login"))
+        # Scope storage to this user
+        set_user_leagues_dir(session["user_email"])
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _get_user_context() -> dict:
+    """Return user info dict for template context (empty if not logged in)."""
+    email = session.get("user_email")
+    if email:
+        return {"email": email, "logged_in": True}
+    return {"email": None, "logged_in": False}
+
 
 def _get_league() -> League | None:
     """Load the active league from session."""
@@ -52,10 +81,68 @@ def _ensure_league():
 
 
 # ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+
+        user = verify_user(email, password)
+        if user:
+            session["user_email"] = user["email"]
+            set_user_leagues_dir(user["email"])
+            flash(f"Welcome back, {user['email']}!", "success")
+            return redirect(url_for("draft_room"))
+        else:
+            flash("Invalid email or password.", "error")
+
+    return render_template("login.html", user=_get_user_context(), active_page=None)
+
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+
+        success, message = create_user(email, password)
+        if success:
+            flash(message, "success")
+            return redirect(url_for("login"))
+        else:
+            flash(message, "error")
+
+    return render_template("signup.html", user=_get_user_context(), active_page=None)
+
+
+@app.route("/logout")
+def logout():
+    session.pop("user_email", None)
+    session.pop("active_league", None)
+    set_user_leagues_dir(None)
+    flash("You've been signed out.", "success")
+    return redirect(url_for("login"))
+
+
+@app.before_request
+def _scope_storage():
+    """Before every request, scope storage to the logged-in user."""
+    if "user_email" in session:
+        set_user_leagues_dir(session["user_email"])
+    # Allow unauthenticated access to auth pages
+    if request.endpoint in ("login", "signup", "static"):
+        return
+
+
+# ---------------------------------------------------------------------------
 # Page Routes
 # ---------------------------------------------------------------------------
 
 @app.route("/")
+@login_required
 def draft_room():
     league = _ensure_league()
     if not league:
@@ -71,25 +158,29 @@ def draft_room():
         ai_recs=None,
         active_page="draft",
         auto_refresh=25 if not league.is_user_on_clock else None,
+        user=_get_user_context(),
     )
 
 
 @app.route("/my-team")
+@login_required
 def my_team():
     league = _ensure_league()
     if not league:
         return redirect(url_for("leagues"))
-    return render_template("my_team.html", league=league, active_page="team")
+    return render_template("my_team.html", league=league, active_page="team", user=_get_user_context())
 
 
 @app.route("/leagues")
+@login_required
 def leagues():
     saved = list_leagues()
     league = _get_league()
-    return render_template("leagues.html", saved_leagues=saved, league=league, active_page="leagues")
+    return render_template("leagues.html", saved_leagues=saved, league=league, active_page="leagues", user=_get_user_context())
 
 
 @app.route("/leagues/create", methods=["GET", "POST"])
+@login_required
 def create_league():
     if request.method == "POST":
         name = request.form.get("name", "Home League")
@@ -120,10 +211,11 @@ def create_league():
         return redirect(url_for("draft_room"))
 
     league = _get_league()
-    return render_template("create_league.html", league=league, active_page="leagues")
+    return render_template("create_league.html", league=league, active_page="leagues", user=_get_user_context())
 
 
 @app.route("/standings")
+@login_required
 def standings():
     league = _ensure_league()
     if not league:
@@ -136,10 +228,12 @@ def standings():
         league=league,
         matrix=matrix,
         active_page="standings",
+        user=_get_user_context(),
     )
 
 
 @app.route("/switch/<league_name>")
+@login_required
 def switch_league(league_name):
     """Switch the active league."""
     league = load_league(league_name)
@@ -156,6 +250,7 @@ def switch_league(league_name):
 # ---------------------------------------------------------------------------
 
 @app.route("/api/draft", methods=["POST"])
+@login_required
 def api_draft():
     """Draft a player for the team on the clock."""
     league = _get_league()
@@ -186,6 +281,7 @@ def api_draft():
 
 
 @app.route("/api/undo")
+@login_required
 def api_undo():
     """Undo the last pick."""
     league = _get_league()
@@ -202,6 +298,7 @@ def api_undo():
 
 
 @app.route("/api/recommend")
+@login_required
 def api_recommend():
     """View full VBD recommendations."""
     league = _get_league()
@@ -209,10 +306,11 @@ def api_recommend():
         return redirect(url_for("leagues"))
 
     recs = recommend(league)
-    return render_template("recommendations.html", league=league, recs=recs, ai_recs=None, active_page="draft")
+    return render_template("recommendations.html", league=league, recs=recs, ai_recs=None, active_page="draft", user=_get_user_context())
 
 
 @app.route("/api/ai-recommend")
+@login_required
 def api_ai_recommend():
     """View full AI recommendations."""
     league = _get_league()
@@ -229,6 +327,7 @@ def api_ai_recommend():
         ai_recs=ai_recs,
         vbd_recs=vbd_recs,
         active_page="draft",
+        user=_get_user_context(),
     )
 
 

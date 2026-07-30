@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,13 +12,29 @@ from src.models import League, Player
 
 # On Vercel (serverless), use /tmp/leagues since the filesystem is ephemeral.
 # Locally, use the project's leagues/ directory.
+# This can be overridden per-user via set_user_leagues_dir().
 _vercel_leagues = os.environ.get("LEAGUES_DIR")
 if _vercel_leagues:
-    LEAGUES_DIR = Path(_vercel_leagues)
+    _BASE_LEAGUES_DIR = Path(_vercel_leagues)
 else:
-    LEAGUES_DIR = Path(__file__).resolve().parent.parent / "leagues"
+    _BASE_LEAGUES_DIR = Path(__file__).resolve().parent.parent / "leagues"
 
+LEAGUES_DIR = _BASE_LEAGUES_DIR
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+
+def set_user_leagues_dir(user_email: str | None) -> None:
+    """
+    Scope league storage to a specific user's directory.
+    Pass `None` to reset to the base leagues directory.
+    """
+    global LEAGUES_DIR
+    if user_email:
+        user_hash = hashlib.sha256(user_email.lower().strip().encode()).hexdigest()[:24]
+        LEAGUES_DIR = _BASE_LEAGUES_DIR.parent / "users" / user_hash / "leagues"
+    else:
+        LEAGUES_DIR = _BASE_LEAGUES_DIR
+    os.makedirs(LEAGUES_DIR, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
