@@ -110,6 +110,7 @@ class Team:
     name: str = ""
     roster: list[Player] = field(default_factory=list)
     roster_slots: dict[str, int] = field(default_factory=lambda: dict(ROSTER_PRESETS["PPR"]))
+    waiver_moves: int = 0
 
     def __post_init__(self):
         if not self.name:
@@ -177,12 +178,14 @@ class Team:
             "name": self.name,
             "roster": [p.to_dict() for p in self.roster],
             "roster_slots": dict(self.roster_slots),
+            "waiver_moves": self.waiver_moves,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> Team:
         team = cls(number=data["number"], name=data.get("name", ""), roster_slots=data.get("roster_slots", {}))
         team.roster = [Player.from_dict(p) for p in data.get("roster", [])]
+        team.waiver_moves = data.get("waiver_moves", 0)
         return team
 
 
@@ -281,6 +284,7 @@ class League:
         player.drafted_at_pick = self.overall_pick
 
         team.roster.append(player)
+        team.waiver_moves += 1
 
         pick = Pick(
             overall_pick=self.overall_pick,

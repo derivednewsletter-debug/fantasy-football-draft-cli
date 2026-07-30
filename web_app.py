@@ -640,6 +640,106 @@ def compute_standings(league: League) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Power Rankings
+# ---------------------------------------------------------------------------
+
+def compute_power_rankings(league: League) -> list[dict]:
+    """
+    Compute power rankings using a composite score (0-100) based on:
+    - Record (25%): Win % normalized across the league
+    - Points For (25%): Raw scoring output
+    - Roster Strength (25%): Sum of projected points of rostered players
+    - Waiver Activity (25%): Engagement / roster moves normalized
+    Returns list of dicts sorted by composite score descending.
+    """
+    standings_base = compute_standings(league)  # gets W-L, PF, PA, streak
+
+    # Build per-team data
+    team_data: dict[int, dict] = {}
+    for s in standings_base:
+        tn = s["team_num"]
+        team_data[tn] = dict(s)  # copy standings fields
+
+    # Add roster strength (sum of projected points)
+    max_roster_score = 1.0
+    for t in league.teams:
+        projected_sum = sum(p.projected_points for p in t.roster)
+        team_data[t.number]["roster_score"] = projected_sum
+        max_roster_score = max(max_roster_score, projected_sum)
+
+    # Add waiver activity
+    max_waivers = 1.0
+    for t in league.teams:
+        team_data[t.number]["waivers"] = t.waiver_moves
+        max_waivers = max(max_waivers, t.waiver_moves)
+
+    # Normalize each factor and compute composite score
+    max_wins = max((d["wins"] for d in team_data.values()), default=1)
+    max_pf = max((d["pf"] for d in team_data.values()), default=1)
+
+    for d in team_data.values():
+        # Normalize each factor 0-100
+        win_score = (d["wins"] / max_wins) * 100 if max_wins > 0 else 0
+        pf_score = (d["pf"] / max_pf) * 100 if max_pf > 0 else 0
+        roster_score = (d["roster_score"] / max_roster_score) * 100 if max_roster_score > 0 else 0
+        waiver_score = (d["waivers"] / max_waivers) * 100 if max_waivers > 0 else 50  # default 50 for 0 moves
+
+        # Weighted composite: 25% each
+        d["win_score"] = round(win_score, 1)
+        d["pf_score"] = round(pf_score, 1)
+        d["roster_score_val"] = round(roster_score, 1)
+        d["waiver_score"] = round(waiver_score, 1)
+
+        d["composite"] = round((win_score + pf_score + roster_score + waiver_score) / 4, 1)
+
+        # Trend: up/down based on win% vs composite
+        d["trend"] = compute_trend(d, standings_base)
+
+    # Sort by composite descending
+    rankings = sorted(team_data.values(), key=lambda x: -x["composite"])
+
+    # Assign rank
+    for i, r in enumerate(rankings):
+        r["rank"] = i + 1
+        r["rank_change"] = 0  # no previous data to compare yet
+        r["change_text"] = "—"
+
+    return rankings
+
+
+def compute_trend(team_dict: dict, standings: list[dict]) -> str:
+    """Estimate trend: up if win% > median, down if below, stable otherwise."""
+    if not standings:
+        return "stable"
+    win_pcts = [s["win_pct"] for s in standings]
+    median_pct = sorted(win_pcts)[len(win_pcts) // 2] if win_pcts else 0
+    if team_dict["win_pct"] > median_pct + 0.05:
+        return "up"
+    elif team_dict["win_pct"] < median_pct - 0.05:
+        return "down"
+    return "stable"
+
+
+@app.route("/power-rankings")
+@login_required
+def power_rankings():
+    """Power Rankings page with composite scores."""
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    rankings = compute_power_rankings(league)
+
+    return render_template(
+        "power_rankings.html",
+        league=league,
+        rankings=rankings,
+        active_page="power_rankings",
+        user=_get_user_context(),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
