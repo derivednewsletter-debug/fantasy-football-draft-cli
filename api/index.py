@@ -4,8 +4,8 @@ This module is the Vercel Python serverless function handler.
 Vercel imports `app` from this module and uses it as a WSGI application.
 """
 
+import json
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -14,61 +14,51 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-# Set Vercel environment flags so storage/auth use /tmp for persistence
-os.environ.setdefault("VERCEL_ENV", "1")
-os.environ.setdefault("LEAGUES_DIR", "/tmp/leagues")
-os.environ.setdefault("USERS_DIR", "/tmp/users")
-
-
 # ---------------------------------------------------------------------------
-# Seed users from the committed data/seed_users/ directory into /tmp/users
+# Initialise the database on every cold start
 #
-# The local users/ directory is gitignored for security, so pre-existing
-# accounts can't live there in the deployed build.  Instead we keep a small
-# seed file under data/seed_users/ (committed) and copy it into /tmp on
-# every cold start so auth.py can find it on the writable filesystem.
+# SQLite users: the file is created automatically at data/app.db.
+# Postgres users: set DATABASE_URL in your Vercel environment variables.
+# Tables are created if they don't exist — safe to call on every boot.
 # ---------------------------------------------------------------------------
-def _seed_users():
-    """Copy pre-existing user accounts from seed sources into /tmp/users."""
-    dst_users = Path("/tmp/users")
+from src.database import init_db, db_create_user, db_get_user_by_email
 
-    # Try the gitignored users/ directory first (local dev)
-    src_candidates = [
-        Path(_project_root) / "users",
-        Path(_project_root) / "data" / "seed_users",
-    ]
+init_db()
 
-    any_seeded = False
 
-    for src_users in src_candidates:
-        if not src_users.exists():
+# ---------------------------------------------------------------------------
+# Seed pre-existing user accounts into the database (idempotent)
+#
+# Two sources:
+#   1. data/seed_users/ — committed to git, ships with Vercel deployment
+#   2. users/ — local only (gitignored), won't exist on Vercel
+# ---------------------------------------------------------------------------
+def _seed_users_from(source_dir: Path) -> None:
+    """Copy user accounts from a directory into the database."""
+    if not source_dir.exists():
+        return
+    for user_dir in source_dir.iterdir():
+        if not user_dir.is_dir():
             continue
-
-        dst_users.mkdir(parents=True, exist_ok=True)
-
-        for user_dir in src_users.iterdir():
-            if not user_dir.is_dir():
+        user_file = user_dir / "user.json"
+        if not user_file.exists():
+            continue
+        try:
+            with open(user_file) as f:
+                data = json.load(f)
+            email = data.get("email", "")
+            if not email or db_get_user_by_email(email):
                 continue
-            dst = dst_users / user_dir.name
-            if not dst.exists():
-                shutil.copytree(user_dir, dst, dirs_exist_ok=True)
-                any_seeded = True
-
-            # Also copy per-user leagues
-            src_league_dir = user_dir / "leagues"
-            if src_league_dir.exists():
-                dst_league_dir = dst / "leagues"
-                dst_league_dir.mkdir(parents=True, exist_ok=True)
-                for f in src_league_dir.glob("*.json"):
-                    dst_f = dst_league_dir / f.name
-                    if not dst_f.exists():
-                        shutil.copy2(f, dst_f)
-
-    if any_seeded:
-        print("[seed] User accounts seeded into /tmp/users")
+            password_hash = data.get("password_hash", "")
+            if password_hash:
+                db_create_user(email, password_hash)
+                print(f"[seed] Seeded {email} into database")
+        except Exception as exc:
+            print(f"[seed] Skipping {user_dir.name}: {exc}")
 
 
-_seed_users()
+_seed_users_from(Path(_project_root) / "data" / "seed_users")
+_seed_users_from(Path(_project_root) / "users")
 
 # Import the Flask app — this triggers route registration
 from web_app import app

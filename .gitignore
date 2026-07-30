@@ -15,5 +15,8 @@ __pycache__/
 *.pyo
 *.egg-info/
 
+# SQLite database files (auto-created, not committed)
+data/app.db
+
 # OS junk
 .DS_Store

@@ -1,107 +1,95 @@
-"""Multi-league JSON persistence layer."""
+"""
+Multi-league persistence layer backed by the database (SQLite / Postgres).
+
+Replaces the old file-based JSON storage.  Leagues are scoped to the current
+user automatically via :func:`set_current_user`, which must be called at the
+start of each authenticated request.
+"""
 
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Optional
 
+from src.auth import get_current_user_id, set_current_user as _set_current_user
+from src.database import (
+    db_delete_league,
+    db_list_leagues,
+    db_load_league,
+    db_save_league,
+)
 from src.models import League, Player
 
-# On Vercel (serverless), use /tmp/leagues since the filesystem is ephemeral.
-# Locally, use the project's leagues/ directory.
-# This can be overridden per-user via set_user_leagues_dir().
-_vercel_leagues = os.environ.get("LEAGUES_DIR")
-if _vercel_leagues:
-    _BASE_LEAGUES_DIR = Path(_vercel_leagues)
-else:
-    _BASE_LEAGUES_DIR = Path(__file__).resolve().parent.parent / "leagues"
-
-LEAGUES_DIR = _BASE_LEAGUES_DIR
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
+# ---------------------------------------------------------------------------
+# User scoping (delegates to auth module)
+# ---------------------------------------------------------------------------
+
 def set_user_leagues_dir(user_email: str | None) -> None:
+    """Scope league storage to a specific user.
+
+    **Note:** The name is historical — we no longer use a directory-based
+    approach.  This function sets the current user id in the database layer.
     """
-    Scope league storage to a specific user's directory.
-    Pass `None` to reset to the base leagues directory.
-    """
-    global LEAGUES_DIR
-    if user_email:
-        user_hash = hashlib.sha256(user_email.lower().strip().encode()).hexdigest()[:24]
-        LEAGUES_DIR = _BASE_LEAGUES_DIR.parent / "users" / user_hash / "leagues"
-    else:
-        LEAGUES_DIR = _BASE_LEAGUES_DIR
-    os.makedirs(LEAGUES_DIR, exist_ok=True)
+    _set_current_user(user_email)
 
 
 # ---------------------------------------------------------------------------
 # League persistence
 # ---------------------------------------------------------------------------
 
+
 def list_leagues() -> list[dict]:
-    """Return metadata about all saved leagues."""
-    os.makedirs(LEAGUES_DIR, exist_ok=True)
-    leagues = []
-    for fpath in sorted(LEAGUES_DIR.glob("*.json")):
-        try:
-            with open(fpath, "r") as f:
-                data = json.load(f)
-            leagues.append({
-                "name": data.get("name", fpath.stem),
-                "path": str(fpath),
-                "num_teams": data.get("num_teams", 0),
-                "scoring_format": data.get("scoring_format", "PPR"),
-                "is_active": data.get("is_active", True),
-                "completed": data.get("completed", False),
-                "overall_pick": data.get("overall_pick", 0),
-                "current_round": data.get("current_round", 0),
-            })
-        except (json.JSONDecodeError, IOError):
-            continue
-    return leagues
+    """Return metadata about all saved leagues for the current user."""
+    uid = get_current_user_id()
+    if uid is None:
+        return []
+    return db_list_leagues(uid)
 
 
 def save_league(league: League) -> None:
-    """Persist a league to disk as JSON."""
-    os.makedirs(LEAGUES_DIR, exist_ok=True)
-    fpath = LEAGUES_DIR / f"{league.name}.json"
-    with open(fpath, "w") as f:
-        json.dump(league.to_dict(), f, indent=2)
-    return fpath
+    """Persist a league to the database."""
+    uid = get_current_user_id()
+    if uid is None:
+        raise RuntimeError("No user session — call set_user_leagues_dir first.")
+    league_dict = _clean_league_dict(league.to_dict())
+    db_save_league(uid, league.name, league_dict)
 
 
 def load_league(league_name: str) -> Optional[League]:
-    """Load a league from disk by name."""
-    fpath = LEAGUES_DIR / f"{league_name}.json"
-    if not fpath.exists():
-        # Try exact match or partial
-        for f in LEAGUES_DIR.glob("*.json"):
-            if league_name.lower() in f.stem.lower():
-                fpath = f
-                break
-        else:
-            return None
+    """Load a league from the database by name."""
+    uid = get_current_user_id()
+    if uid is None:
+        return None
 
-    with open(fpath, "r") as f:
-        data = json.load(f)
-    return League.from_dict(data)
+    data = db_load_league(uid, league_name)
+    if data is not None:
+        return League.from_dict(data)
+
+    # Fallback: try partial name match
+    for meta in db_list_leagues(uid):
+        if league_name.lower() in meta["name"].lower():
+            data = db_load_league(uid, meta["name"])
+            if data is not None:
+                return League.from_dict(data)
+    return None
 
 
 def delete_league(league_name: str) -> bool:
-    """Delete a saved league file."""
-    fpath = LEAGUES_DIR / f"{league_name}.json"
-    if fpath.exists():
-        fpath.unlink()
-        return True
-    return False
+    """Delete a saved league. Returns True if deleted."""
+    uid = get_current_user_id()
+    if uid is None:
+        return False
+    return db_delete_league(uid, league_name)
 
 
 # ---------------------------------------------------------------------------
-# Player data loading
+# Player data loading (unchanged — CSV file on disk)
 # ---------------------------------------------------------------------------
+
 
 def load_player_data(filepath: Optional[str] = None) -> list[Player]:
     """Load players from a CSV projections file, or fall back to defaults."""
@@ -136,6 +124,22 @@ def load_player_data(filepath: Optional[str] = None) -> list[Player]:
             except (ValueError, KeyError):
                 continue
 
-    # Sort by tier then projected points descending
     players.sort(key=lambda p: (p.tier, -p.projected_points))
     return players
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _clean_league_dict(d: dict) -> dict:
+    """Remove keys that can't be JSON-serialized (e.g. some dataclasses)."""
+    # The League.to_dict() already returns plain Python types, so this is
+    # mostly a safety net.  Convert any remaining non-serializable values.
+    try:
+        json.dumps(d)
+        return d
+    except (TypeError, ValueError):
+        # Deep-convert — replace non-serializable values with str()
+        return json.loads(json.dumps(d, default=str))

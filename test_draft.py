@@ -187,6 +187,15 @@ if __name__ == "__main__":
     print("🏆 FANTASY FOOTBALL DRAFT CLI — VALIDATION TESTS")
     print("=" * 55)
 
+    # Initialise the database backend
+    from src.database import init_db, db_create_user
+    init_db()
+    # Create a test user so save_league() / load_league() have a session
+    if not db_create_user("test@draft.com", ""):
+        pass  # user already exists
+    from src.auth import set_current_user
+    set_current_user("test@draft.com")
+
     try:
         league = test_01_create_league()
         test_02_snake_order(league)
