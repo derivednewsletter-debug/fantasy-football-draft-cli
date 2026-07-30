@@ -1,0 +1,28 @@
+<tr class="hover:bg-surface-variant transition-colors">
+    <td class="px-md py-md">
+        <div class="flex items-center gap-md">
+            <div class="relative">
+                <div class="w-10 h-10 rounded-lg bg-surface-bright flex items-center justify-center font-bold text-xs {% if p.position == 'QB' %}text-secondary-container{% elif p.position == 'RB' %}text-secondary{% elif p.position == 'WR' %}text-primary{% elif p.position == 'TE' %}text-tertiary{% endif %}">{{ p.position }}</div>
+                {% if p.get('live', False) %}
+                <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-surface-container animate-pulse"></div>
+                {% endif %}
+            </div>
+            <div>
+                <p class="font-bold text-on-surface leading-none text-sm">{{ p.name }}</p>
+                <p class="text-[10px] font-label-caps text-on-surface-variant">{{ p.team_abbr if p.team_abbr else '' }} · {{ p.position }}</p>
+            </div>
+        </div>
+    </td>
+    <td class="px-md py-md">
+        <p class="text-xs font-label-caps">{{ p.get('matchup', '—') }}</p>
+        {% if p.get('game_state') == 'LIVE' %}
+        <p class="text-[10px] text-error">{{ p.get('game_clock', '') }}</p>
+        {% endif %}
+    </td>
+    <td class="px-md py-md hidden md:table-cell">
+        <p class="text-xs font-body-md text-on-surface-variant">{{ p.get('stats_line', 'No stats yet') }}</p>
+    </td>
+    <td class="px-md py-md text-right">
+        <span class="font-data-numeral {% if p.fantasy_points and p.fantasy_points >= 10 %}text-primary{% else %}text-on-surface{% endif %} font-bold">{{ "%.1f"|format(p.fantasy_points) if p.fantasy_points else '0.0' }}</span>
+    </td>
+</tr>

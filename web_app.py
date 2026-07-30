@@ -22,6 +22,12 @@ from src.storage import (
     set_user_leagues_dir,
 )
 from src.engine import recommend, recommend_ai, build_draft_matrix
+from src.live_data import (
+    get_nfl_state,
+    get_live_scores,
+    get_scoring_alerts,
+    get_player_stats_in_game,
+)
 
 app = Flask(__name__)
 # Use a fixed secret key from env (for Vercel/session persistence across invocations)
@@ -327,6 +333,161 @@ def api_ai_recommend():
         ai_recs=ai_recs,
         vbd_recs=vbd_recs,
         active_page="draft",
+        user=_get_user_context(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gameday Routes
+# ---------------------------------------------------------------------------
+
+def _compute_matchup_data(league: League) -> dict | None:
+    """Build matchup data dict for the gameday view, pulling live data when available."""
+    if not league.week_opponent:
+        return None
+
+    user_team = league.user_team
+    opp_team = league.teams[league.week_opponent - 1]
+
+    # Try to get live scores from ESPN
+    live_scores = []
+    live_error = False
+    alerts = []
+    try:
+        live_scores = get_live_scores()
+        alerts = get_scoring_alerts(live_scores)
+    except Exception:
+        live_error = True
+
+    # Calculate fantasy points from live data for each team's players
+    user_fps: dict[str, float] = {}
+    opp_fps: dict[str, float] = {}
+
+    if live_scores:
+        all_names = [p.name for p in user_team.roster] + [p.name for p in opp_team.roster]
+        for game in live_scores:
+            try:
+                stats = get_player_stats_in_game(game["id"])
+                for s in stats:
+                    s_name = s["name"].split(" ")[-1]  # last name match
+                    for p in user_team.roster:
+                        if p.name.split()[-1].lower() == s_name.lower():
+                            user_fps[p.name] = s.get("fantasy_points", 0)
+                    for p in opp_team.roster:
+                        if p.name.split()[-1].lower() == s_name.lower():
+                            opp_fps[p.name] = s.get("fantasy_points", 0)
+            except Exception:
+                continue
+
+    # Build user performance rows
+    user_perf = []
+    for p in user_team.roster[:9]:  # starters + top bench
+        fp = user_fps.get(p.name, 0)
+        user_perf.append({
+            "name": p.name,
+            "position": p.position,
+            "team_abbr": p.team,
+            "fantasy_points": fp or round(p.projected_points * 0.6, 1),
+            "matchup": f"{p.team} vs TBD",
+            "stats_line": "Live stats pending",
+            "live": p.name in user_fps,
+        })
+
+    opp_perf = []
+    for p in opp_team.roster[:9]:
+        fp = opp_fps.get(p.name, 0)
+        opp_perf.append({
+            "name": p.name,
+            "position": p.position,
+            "team_abbr": p.team,
+            "fantasy_points": fp or round(p.projected_points * 0.6, 1),
+            "matchup": f"{p.team} vs TBD",
+            "stats_line": "",
+            "live": p.name in opp_fps,
+        })
+
+    user_score = sum(u["fantasy_points"] for u in user_perf)
+    opp_score = sum(o["fantasy_points"] for o in opp_perf)
+    total = user_score + opp_score
+    win_prob = round((user_score / total * 100) if total > 0 else 50)
+
+    # Build other league games
+    league_games = []
+    for i in range(0, league.num_teams - 1, 2):
+        t1 = league.teams[i]
+        t2 = league.teams[i + 1] if i + 1 < league.num_teams else league.teams[0]
+        if t1.number in (league.user_team_number, league.week_opponent) or \
+           t2.number in (league.user_team_number, league.week_opponent):
+            continue
+        league_games.append({
+            "label": "NFL Sunday",
+            "live": len(live_scores) > 0,
+            "home_name": t1.name,
+            "away_name": t2.name,
+            "home_score": round(sum(p.projected_points for p in t1.roster) * 0.1, 1),
+            "away_score": round(sum(p.projected_points for p in t2.roster) * 0.1, 1),
+        })
+
+    return {
+        "user_score": round(user_score, 1),
+        "opponent_score": round(opp_score, 1),
+        "win_prob": win_prob,
+        "state": "LIVE" if live_scores else "UPCOMING",
+        "games_remaining": len([g for g in live_scores if g["state"] == "LIVE"]),
+        "user_performance": user_perf,
+        "opponent_performance": opp_perf,
+        "league_games": league_games,
+        "alerts": alerts,
+        "last_update": "just now",
+    }
+
+
+@app.route("/gameday")
+@login_required
+def gameday():
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    matchup_data = _compute_matchup_data(league)
+    live_error = matchup_data is None or matchup_data.get("state") == "ERROR"
+
+    return render_template(
+        "gameday.html",
+        league=league,
+        matchup_data=matchup_data,
+        opponent_team=league.teams[league.week_opponent - 1] if league.week_opponent else None,
+        live_error=live_error,
+        active_page="gameday",
+        user=_get_user_context(),
+    )
+
+
+@app.route("/gameday/setup", methods=["GET", "POST"])
+@login_required
+def gameday_setup():
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    if request.method == "POST":
+        week = int(request.form.get("week", 1))
+        opponent = int(request.form.get("opponent", 0))
+
+        if opponent < 1 or opponent > league.num_teams or opponent == league.user_team_number:
+            flash("Invalid opponent selection.", "error")
+            return redirect(url_for("gameday_setup"))
+
+        league.current_week = week
+        league.week_opponent = opponent
+        save_league(league)
+        flash(f"Week {week} opponent set to {league.teams[opponent - 1].name}!", "success")
+        return redirect(url_for("gameday"))
+
+    return render_template(
+        "gameday_setup.html",
+        league=league,
+        active_page="gameday",
         user=_get_user_context(),
     )
 

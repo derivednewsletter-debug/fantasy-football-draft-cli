@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Game Day{% endblock %}
+
+{% block content %}
+{% set user_team = league.user_team if league else None %}
+{% set opponent_team = league.teams[league.week_opponent - 1] if league and league.week_opponent else None %}
+
+<div class="p-lg space-y-lg">
+    <!-- Week Selector Bar -->
+    <div class="flex items-center justify-between bg-surface-container rounded-xl border border-outline-variant p-md">
+        <div class="flex items-center gap-md">
+            <span class="font-headline-md text-headline-md text-on-surface">Week {{ league.current_week if league else 1 }}</span>
+            {% if league and league.week_opponent %}
+            <span class="font-body-md text-on-surface-variant">vs <span class="text-primary font-bold">{{ opponent_team.name if opponent_team else 'Team ' ~ league.week_opponent }}</span></span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-sm">
+            {% if league %}
+            <a href="/gameday/setup" class="px-md py-sm rounded border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary transition-all font-label-caps text-label-caps flex items-center gap-xs">
+                <span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+                Set Opponent
+            </a>
+            {% endif %}
+            <span class="px-md py-sm bg-surface-container-high rounded font-label-caps text-[10px] text-on-surface-variant border border-outline-variant">
+                {% if live_error %}Data may be delayed{% else %}Live{% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Matchup Header -->
+    {% if matchup_data %}
+    <section class="bg-surface-container-low border border-outline-variant rounded-xl p-lg relative overflow-hidden">
+        <div class="relative z-10 grid grid-cols-1 md:grid-cols-3 items-center gap-lg">
+            <!-- Home Team (User) -->
+            <div class="flex items-center gap-md order-2 md:order-1">
+                <div class="text-right">
+                    <h3 class="font-headline-lg text-headline-lg text-primary uppercase">{{ user_team.name if user_team else 'Your Team' }}</h3>
+                    <p class="text-on-surface-variant font-label-caps">{{ user_team.roster|length }} players</p>
+                </div>
+                <div class="w-20 h-20 bg-primary-container/20 border-2 border-primary rounded-full flex items-center justify-center p-md">
+                    <span class="material-symbols-outlined text-primary text-5xl" data-icon="bolt" style="font-variation-settings: 'FILL' 1;">bolt</span>
+                </div>
+            </div>
+            <!-- Scoreboard Central -->
+            <div class="text-center order-1 md:order-2">
+                <div class="inline-block {% if matchup_data.get('state') == 'LIVE' %}bg-error{% else %}bg-surface-variant{% endif %} px-sm py-1 rounded-sm text-on-error font-label-caps mb-sm {% if matchup_data.get('state') == 'LIVE' %}animate-pulse{% endif %}">
+                    {% if matchup_data.get('state') == 'LIVE' %}LIVE{% elif matchup_data.get('state') == 'FINAL' %}FINAL{% else %}UPCOMING{% endif %}
+                </div>
+                <div class="flex items-center justify-center gap-lg">
+                    <span class="font-headline-xl text-[64px] text-primary font-data-numeral">{{ "%.1f"|format(matchup_data.user_score) }}</span>
+                    <span class="font-headline-md text-on-surface-variant opacity-40">—</span>
+                    <span class="font-headline-xl text-[64px] text-on-surface font-data-numeral">{{ "%.1f"|format(matchup_data.opponent_score) }}</span>
+                </div>
+                <div class="mt-md px-xl">
+                    <div class="flex justify-between font-label-caps text-xs mb-xs">
+                        <span>Win Prob: {{ matchup_data.win_prob }}%</span>
+                        <span class="text-on-surface-variant">
+                            {%- if matchup_data.get('games_remaining') is not none -%}
+                            {{ matchup_data.games_remaining }} games remaining
+                            {%- endif -%}
+                        </span>
+                    </div>
+                    <div class="w-full h-2 bg-surface-variant rounded-full overflow-hidden border border-outline-variant">
+                        <div class="h-full rounded-full transition-all duration-1000" style="width: {{ matchup_data.win_prob }}%; background: linear-gradient(90deg, #68dba9 {{ matchup_data.win_prob }}%, #3d4a42 {{ matchup_data.win_prob }}%);"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Away Team (Opponent) -->
+            <div class="flex items-center gap-md justify-end order-3">
+                <div class="w-20 h-20 bg-surface-container-high border-2 border-outline rounded-full flex items-center justify-center p-md">
+                    <span class="material-symbols-outlined text-on-surface-variant text-5xl" data-icon="skull">skull</span>
+                </div>
+                <div class="text-left">
+                    <h3 class="font-headline-lg text-headline-lg text-on-surface uppercase">{{ opponent_team.name if opponent_team else 'Opponent' }}</h3>
+                    <p class="text-on-surface-variant font-label-caps">{{ opponent_team.roster|length if opponent_team else 0 }} players</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    {% else %}
+    <section class="bg-surface-container-low border border-outline-variant rounded-xl p-lg text-center">
+        <span class="material-symbols-outlined text-4xl text-outline block mb-sm" data-icon="calendar_month">calendar_month</span>
+        <p class="text-on-surface-variant mb-sm">No opponent set for this week.</p>
+        <a href="/gameday/setup" class="bg-primary text-on-primary px-lg py-sm rounded font-bold inline-block hover:opacity-80">Set Weekly Opponent</a>
+    </section>
+    {% endif %}
+
+    {% if matchup_data %}
+    <!-- Gameday Grid (Bento) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+        <!-- Gameday Tracker: Other League Games -->
+        <div class="lg:col-span-3 space-y-md">
+            <h4 class="font-headline-md text-headline-md text-primary flex items-center gap-sm">
+                <span class="material-symbols-outlined" data-icon="scoreboard">scoreboard</span>
+                Gameday Tracker
+            </h4>
+            <div class="space-y-sm">
+                {% for gm in matchup_data.get('league_games', []) %}
+                <div class="bg-surface-container-low border border-outline-variant p-md rounded-lg hover:border-primary/50 transition-colors cursor-pointer {% if not gm.get('live') %}opacity-70{% endif %}">
+                    <div class="flex justify-between items-center mb-sm">
+                        <span class="font-label-caps text-xs text-on-surface-variant">{{ gm.get('label', 'NFL Sunday') }}</span>
+                        {% if gm.get('live') %}
+                        <span class="text-error font-label-caps text-[10px] flex items-center gap-xs"><span class="w-1.5 h-1.5 bg-error rounded-full animate-pulse"></span> LIVE</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex justify-between items-center mb-sm">
+                        <span class="font-body-md text-on-surface">{{ gm.get('home_name', 'Team') }}</span>
+                        <span class="font-data-numeral text-on-surface">{{ gm.get('home_score', 0) }}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-body-md text-on-surface-variant">{{ gm.get('away_name', 'Team') }}</span>
+                        <span class="font-data-numeral text-on-surface-variant">{{ gm.get('away_score', 0) }}</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="bg-surface-container-low border border-outline-variant p-md rounded-lg text-center text-on-surface-variant">
+                    <p class="text-sm">No other league games this week.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Player Performance Matrix -->
+        <div class="lg:col-span-6 space-y-md">
+            <h4 class="font-headline-md text-headline-md text-primary flex items-center gap-sm">
+                <span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
+                Live Performance Matrix
+            </h4>
+            <div class="bg-surface-container border border-outline-variant rounded-xl overflow-hidden">
+                <!-- Team Tabs -->
+                <div class="flex border-b border-outline-variant">
+                    <button class="team-tab flex-1 py-md font-label-caps text-primary border-b-2 border-primary bg-primary/5" data-team="user">{{ user_team.name if user_team else 'Your Team' }}</button>
+                    <button class="team-tab flex-1 py-md font-label-caps text-on-surface-variant hover:bg-surface-variant" data-team="opponent">{{ opponent_team.name if opponent_team else 'Opponent' }}</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-surface-container-high">
+                            <tr class="border-b border-outline-variant">
+                                <th class="px-md py-sm font-label-caps text-xs text-on-surface-variant">Player</th>
+                                <th class="px-md py-sm font-label-caps text-xs text-on-surface-variant">Context</th>
+                                <th class="px-md py-sm font-label-caps text-xs text-on-surface-variant hidden md:table-cell">Performance</th>
+                                <th class="px-md py-sm font-label-caps text-xs text-on-surface-variant text-right">FPTS</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/30 roster-tbody" id="userRoster">
+                            {% for p in matchup_data.get('user_performance', []) %}
+                            {% include "_player_row.html" %}
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-lg text-on-surface-variant text-sm">No players on your roster yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                        <tbody class="divide-y divide-outline-variant/30 roster-tbody hidden" id="opponentRoster">
+                            {% for p in matchup_data.get('opponent_performance', []) %}
+                            {% include "_player_row.html" %}
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-lg text-on-surface-variant text-sm">No players on opponent's roster.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="bg-surface-container-high px-md py-sm border-t border-outline-variant flex justify-between items-center">
+                    <span class="font-label-caps text-[10px] text-on-surface-variant">
+                        {% if matchup_data.get('last_update') %}Last update: {{ matchup_data.last_update }}{% else %}Live data auto-refreshes{% endif %}
+                    </span>
+                    <a href="/gameday" class="text-primary font-label-caps text-[10px] hover:underline flex items-center gap-xs">
+                        <span class="material-symbols-outlined text-[14px]" data-icon="refresh">refresh</span>
+                        SYNC DATA
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scoring Alerts -->
+        <div class="lg:col-span-3 space-y-md">
+            <h4 class="font-headline-md text-headline-md text-primary flex items-center gap-sm">
+                <span class="material-symbols-outlined" data-icon="bolt">bolt</span>
+                Scoring Alerts
+            </h4>
+            <div class="space-y-gutter relative">
+                <div class="absolute left-4 top-4 bottom-4 w-px bg-outline-variant opacity-30"></div>
+                {% for alert in matchup_data.get('alerts', []) %}
+                <div class="relative pl-lg group">
+                    {% set alert_colors = {'TOUCHDOWN': 'bg-primary border-primary ring-primary', 'FUMBLE': 'bg-error border-error ring-error', 'BIG GAME': 'bg-secondary border-secondary ring-secondary', 'RED ZONE': 'bg-secondary border-secondary ring-secondary'} %}
+                    {% set default_color = 'bg-primary border-background ring-primary' %}
+                    <div class="absolute left-3 top-2 w-2 h-2 rounded-full {{ alert_colors.get(alert.type, default_color) }} border-2 border-background ring-4 z-10"></div>
+                    <div class="bg-surface-container-low border border-outline-variant p-md rounded-lg group-hover:bg-surface-container-high transition-all">
+                        <p class="text-[10px] font-label-caps {% if alert.type == 'TOUCHDOWN' %}text-primary{% elif alert.type == 'FUMBLE' %}text-error{% else %}text-secondary{% endif %} mb-xs">{{ alert.type }}</p>
+                        <p class="text-sm font-body-md text-on-surface leading-tight">
+                            <span class="font-bold">{{ alert.player }}</span> {{ alert.detail }}
+                        </p>
+                        <div class="mt-sm flex justify-between items-center">
+                            <span class="text-[10px] text-on-surface-variant">{{ alert.game }}</span>
+                            <span class="text-xs text-on-surface-variant">{{ alert.time }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-lg">
+                    <span class="material-symbols-outlined text-3xl text-outline block mb-sm" data-icon="notifications_off">notifications_off</span>
+                    <p class="text-sm text-on-surface-variant">No scoring alerts yet. Games are either not live or no significant plays have occurred.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Team tab switching — show/hide the corresponding roster tbody
+    document.querySelectorAll('.team-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.team-tab').forEach(t => {
+                t.classList.remove('text-primary', 'border-b-2', 'border-primary', 'bg-primary/5');
+                t.classList.add('text-on-surface-variant');
+            });
+            this.classList.add('text-primary', 'border-b-2', 'border-primary', 'bg-primary/5');
+            this.classList.remove('text-on-surface-variant');
+
+            const team = this.dataset.team;
+            document.querySelectorAll('.roster-tbody').forEach(tbody => {
+                tbody.classList.add('hidden');
+            });
+            const target = document.getElementById(team === 'user' ? 'userRoster' : 'opponentRoster');
+            if (target) target.classList.remove('hidden');
+        });
+    });
+</script>
+{% endblock %}

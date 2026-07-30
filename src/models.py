@@ -206,6 +206,9 @@ class League:
     overall_pick: int = 1
     is_active: bool = True
     completed: bool = False
+    schedule: dict[str, list[dict]] = field(default_factory=dict)  # week -> [{home_team, away_team}, ...]
+    current_week: int = 1
+    week_opponent: Optional[int] = None  # opponent team number for current week
 
     def __post_init__(self):
         if not self.teams:
@@ -328,6 +331,9 @@ class League:
             "overall_pick": self.overall_pick,
             "is_active": self.is_active,
             "completed": self.completed,
+            "schedule": self.schedule,
+            "current_week": self.current_week,
+            "week_opponent": self.week_opponent,
         }
 
     @classmethod
@@ -347,4 +353,7 @@ class League:
         league.overall_pick = data.get("overall_pick", 1)
         league.is_active = data.get("is_active", True)
         league.completed = data.get("completed", False)
+        league.schedule = data.get("schedule", {})
+        league.current_week = data.get("current_week", 1)
+        league.week_opponent = data.get("week_opponent")
         return league

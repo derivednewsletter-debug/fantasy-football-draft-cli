@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Game Day Setup{% endblock %}
+
+{% block content %}
+<div class="p-lg max-w-xl mx-auto">
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+        <div class="flex items-center gap-sm mb-lg">
+            <span class="material-symbols-outlined text-primary" data-icon="calendar_month">calendar_month</span>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface">Weekly Matchup Setup</h2>
+        </div>
+
+        <form method="POST" action="/gameday/setup" class="space-y-md">
+            <!-- Week Number -->
+            <div>
+                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-xs">WEEK</label>
+                <input type="number" name="week" value="{{ league.current_week if league else 1 }}" min="1" max="18" required
+                       class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary"/>
+            </div>
+
+            <!-- Opponent Selection -->
+            <div>
+                <label class="font-label-caps text-label-caps text-on-surface-variant block mb-xs">YOUR OPPONENT</label>
+                <div class="space-y-sm">
+                    {% for team in league.teams if league %}
+                    {% if team.number != league.user_team_number %}
+                    <label class="flex items-center gap-md p-md bg-surface-container-low border border-outline-variant rounded-lg hover:border-primary transition-all cursor-pointer {% if league.week_opponent == team.number %}border-primary bg-primary/5{% endif %}">
+                        <input type="radio" name="opponent" value="{{ team.number }}" {% if league.week_opponent == team.number %}checked{% endif %} required
+                               class="text-primary focus:ring-primary bg-surface-container-low border-outline-variant"/>
+                        <div>
+                            <p class="font-bold text-on-surface text-sm">{{ team.name }}</p>
+                            <p class="text-xs text-on-surface-variant">{{ team.roster|length }} players · {{ team.roster_count_by_position('QB') }} QB, {{ team.roster_count_by_position('RB') }} RB, {{ team.roster_count_by_position('WR') }} WR</p>
+                        </div>
+                    </label>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <button type="submit" class="w-full bg-primary text-on-primary font-bold py-md rounded-lg hover:opacity-90 transition-all flex items-center justify-center gap-sm">
+                <span class="material-symbols-outlined" data-icon="sports_football">sports_football</span>
+                Set Matchup & View Gameday
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

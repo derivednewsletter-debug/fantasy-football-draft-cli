@@ -159,6 +159,10 @@
                 <span class="material-symbols-outlined" data-icon="format_list_numbered">format_list_numbered</span>
                 <span>Leagues</span>
             </a>
+            <a href="/gameday" class="flex items-center gap-md px-md py-sm {% if active_page == 'gameday' %}bg-secondary-container text-on-secondary-container rounded-lg font-bold translate-x-1{% else %}text-on-surface-variant hover:bg-surface-variant{% endif %} transition-all font-label-caps text-label-caps">
+                <span class="material-symbols-outlined" data-icon="scoreboard">scoreboard</span>
+                <span>Game Day</span>
+            </a>
             <a href="/standings" class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant transition-all font-label-caps text-label-caps">
                 <span class="material-symbols-outlined" data-icon="swap_horizontal_circle">swap_horizontal_circle</span>
                 <span>Standings</span>
@@ -187,6 +191,7 @@
                 <a class="font-body-md {% if active_page == 'draft' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/">Draft Room</a>
                 <a class="font-body-md {% if active_page == 'team' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/my-team">My Team</a>
                 <a class="font-body-md text-on-surface-variant font-medium hover:text-primary-fixed transition-colors duration-200" href="/leagues">Leagues</a>
+                <a class="font-body-md {% if active_page == 'gameday' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/gameday">Game Day</a>
                 <a class="font-body-md text-on-surface-variant font-medium hover:text-primary-fixed transition-colors duration-200" href="/standings">Standings</a>
             </nav>
             <div class="flex items-center gap-md">
