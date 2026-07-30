@@ -227,12 +227,24 @@ def standings():
     if not league:
         return redirect(url_for("leagues"))
 
+    standings_data = compute_standings(league)
     matrix = build_draft_matrix(league)
+    week_count = len(league.matchup_results or {})
+
+    # Find user's rank
+    user_rank = None
+    for s in standings_data:
+        if s["team_num"] == league.user_team_number:
+            user_rank = s["rank"]
+            break
 
     return render_template(
         "standings.html",
         league=league,
+        standings=standings_data,
         matrix=matrix,
+        week_count=week_count,
+        user_rank=user_rank,
         active_page="standings",
         user=_get_user_context(),
     )
@@ -463,6 +475,55 @@ def gameday():
     )
 
 
+@app.route("/gameday/finalize")
+@login_required
+def gameday_finalize():
+    """Save the current week's matchup result to standings."""
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    if not league.week_opponent:
+        flash("Set a weekly opponent first.", "error")
+        return redirect(url_for("gameday_setup"))
+
+    matchup = _compute_matchup_data(league)
+    if not matchup:
+        flash("Could not compute matchup data.", "error")
+        return redirect(url_for("gameday"))
+
+    week_key = str(league.current_week)
+    if not league.matchup_results:
+        league.matchup_results = {}
+    if week_key not in league.matchup_results:
+        league.matchup_results[week_key] = {}
+
+    user_score = matchup["user_score"]
+    opp_score = matchup["opponent_score"]
+
+    # Save user result
+    if user_score > opp_score:
+        user_result = "W"
+        opp_result = "L"
+    elif opp_score > user_score:
+        user_result = "L"
+        opp_result = "W"
+    else:
+        user_result = "T"
+        opp_result = "T"
+
+    league.matchup_results[week_key][str(league.user_team_number)] = {
+        "pf": user_score, "pa": opp_score, "result": user_result
+    }
+    league.matchup_results[week_key][str(league.week_opponent)] = {
+        "pf": opp_score, "pa": user_score, "result": opp_result
+    }
+
+    save_league(league)
+    flash(f"Week {league.current_week} finalized! {user_score:.1f} - {opp_score:.1f}", "success")
+    return redirect(url_for("standings"))
+
+
 @app.route("/gameday/setup", methods=["GET", "POST"])
 @login_required
 def gameday_setup():
@@ -490,6 +551,92 @@ def gameday_setup():
         active_page="gameday",
         user=_get_user_context(),
     )
+
+
+# ---------------------------------------------------------------------------
+# Standings computation
+# ---------------------------------------------------------------------------
+
+def compute_standings(league: League) -> list[dict]:
+    """
+    Compute team standings from matchup_results.
+    Returns list of dicts sorted by best record (W, then PF tiebreaker).
+    """
+    results = league.matchup_results or {}
+    team_stats: dict[int, dict] = {}
+
+    for t in league.teams:
+        n = t.number
+        team_stats[n] = {
+            "team_num": n,
+            "team_name": t.name,
+            "wins": 0,
+            "losses": 0,
+            "ties": 0,
+            "pf": 0.0,
+            "pa": 0.0,
+            "streak": [],
+            "roster_count": len(t.roster),
+        }
+
+    for week_str, week_data in results.items():
+        for t_num_str, m in week_data.items():
+            t_num = int(t_num_str)
+            if t_num in team_stats:
+                team_stats[t_num]["pf"] += m.get("pf", 0)
+                team_stats[t_num]["pa"] += m.get("pa", 0)
+                result = m.get("result", "")
+                if result == "W":
+                    team_stats[t_num]["wins"] += 1
+                    team_stats[t_num]["streak"].append("W")
+                elif result == "L":
+                    team_stats[t_num]["losses"] += 1
+                    team_stats[t_num]["streak"].append("L")
+                elif result == "T":
+                    team_stats[t_num]["ties"] += 1
+                    team_stats[t_num]["streak"].append("T")
+
+    # Build standings list
+    standings = []
+    for n, s in team_stats.items():
+        games = s["wins"] + s["losses"] + s["ties"]
+        win_pct = round(s["wins"] / games, 3) if games > 0 else 0.0
+        # Streak display
+        streak_str = ""
+        if s["streak"]:
+            count = 0
+            last = s["streak"][-1]
+            for r in reversed(s["streak"]):
+                if r == last:
+                    count += 1
+                else:
+                    break
+            streak_str = f"{last}{count}"
+
+        standings.append({
+            "team_num": n,
+            "team_name": s["team_name"],
+            "wins": s["wins"],
+            "losses": s["losses"],
+            "ties": s["ties"],
+            "win_pct": win_pct,
+            "games": games,
+            "pf": round(s["pf"], 1),
+            "pa": round(s["pa"], 1),
+            "diff": round(s["pf"] - s["pa"], 1),
+            "streak": streak_str,
+            "roster_count": s["roster_count"],
+        })
+
+    # Sort: wins desc, then PF desc
+    standings.sort(key=lambda x: (-x["wins"], -x["pf"]))
+
+    # Assign rank and check playoff picture
+    for i, s in enumerate(standings):
+        s["rank"] = i + 1
+        s["playoff"] = i < (league.num_teams // 2)  # Top half make playoffs
+
+    return standings
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,12 @@
                 <span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
                 Set Opponent
             </a>
+            {% if league and league.week_opponent %}
+            <a href="/gameday/finalize" class="px-md py-sm rounded bg-secondary text-on-secondary font-bold font-label-caps text-label-caps hover:opacity-80 transition-all flex items-center gap-xs" onclick="return confirm('Finalize Week {{ league.current_week }} result? This will save the current scores to standings.')">
+                <span class="material-symbols-outlined text-sm" data-icon="check_circle">check_circle</span>
+                Finalize Week {{ league.current_week }}
+            </a>
+            {% endif %}
             {% endif %}
             <span class="px-md py-sm bg-surface-container-high rounded font-label-caps text-[10px] text-on-surface-variant border border-outline-variant">
                 {% if live_error %}Data may be delayed{% else %}Live{% endif %}

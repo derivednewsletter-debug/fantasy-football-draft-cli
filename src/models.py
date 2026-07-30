@@ -209,6 +209,8 @@ class League:
     schedule: dict[str, list[dict]] = field(default_factory=dict)  # week -> [{home_team, away_team}, ...]
     current_week: int = 1
     week_opponent: Optional[int] = None  # opponent team number for current week
+    matchup_results: dict[str, dict] = field(default_factory=dict)
+    # matchup_results format: {week_str: {team_num: {"pf": float, "pa": float, "result": "W"|"L"|"T"}}}
 
     def __post_init__(self):
         if not self.teams:
@@ -334,6 +336,7 @@ class League:
             "schedule": self.schedule,
             "current_week": self.current_week,
             "week_opponent": self.week_opponent,
+            "matchup_results": self.matchup_results,
         }
 
     @classmethod
@@ -356,4 +359,5 @@ class League:
         league.schedule = data.get("schedule", {})
         league.current_week = data.get("current_week", 1)
         league.week_opponent = data.get("week_opponent")
+        league.matchup_results = data.get("matchup_results", {})
         return league

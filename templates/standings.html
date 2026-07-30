@@ -3,38 +3,197 @@
 
 {% block content %}
 <div class="p-lg space-y-lg">
-    <h2 class="font-headline-lg text-headline-lg text-on-surface">Draft Board · All Teams</h2>
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface">League Standings</h2>
+            <p class="font-body-sm text-on-surface-variant">
+                {% if week_count > 0 %}{{ week_count }} weeks completed{% else %}No weeks played yet{% endif %}
+                {% if standings %} · {{ standings|length }} teams{% endif %}
+            </p>
+        </div>
+        {% if standings and user_rank %}
+        <div class="bg-surface-container-high border border-outline-variant rounded-lg px-lg py-md text-center">
+            <p class="font-label-caps text-[10px] text-outline">YOUR RANK</p>
+            <p class="font-headline-lg text-headline-lg text-primary">#{{ user_rank }}</p>
+        </div>
+        {% endif %}
+    </div>
 
-    <div class="overflow-x-auto custom-scrollbar">
-        <div class="flex gap-lg" style="min-width: max-content;">
-            {% for team_data in matrix %}
-            <div class="bg-surface-container rounded-xl border border-outline-variant p-md" style="width: 250px;">
-                <div class="flex items-center gap-sm mb-md">
-                    <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center font-bold text-primary">
-                        {{ team_data.number }}
-                    </div>
-                    <div>
-                        <p class="font-bold text-on-surface text-sm">{{ team_data.name }}</p>
-                        <p class="font-label-caps text-[10px] text-outline">{{ team_data.pick_count }} picks</p>
-                    </div>
-                </div>
-                <div class="space-y-xs">
-                    {% for p in team_data.roster %}
-                    {% set col = {'QB': 'text-secondary-container', 'RB': 'text-secondary', 'WR': 'text-primary', 'TE': 'text-tertiary', 'K': 'text-on-surface-variant', 'DST': 'text-primary-fixed'}[p.position] %}
-                    <div class="bg-surface-container-low rounded px-sm py-xs flex items-center justify-between">
-                        <div class="flex items-center gap-sm min-w-0">
-                            <span class="font-label-caps text-[10px] {{ col }} w-6">{{ p.position }}</span>
-                            <span class="font-body-sm text-on-surface text-xs truncate max-w-[140px]">{{ p.name }}</span>
-                        </div>
-                        <span class="font-data-numeral text-[11px] text-outline">{{ "%.0f"|format(p.projected_points) }}</span>
-                    </div>
+    <!-- Standings Table -->
+    <div class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left">
+                <thead class="bg-surface-container-high">
+                    <tr class="border-b border-outline-variant">
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline w-10">RK</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline">TEAM</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">W</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">L</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">T</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">PCT</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-right">PF</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-right">PA</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-right">DIFF</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">STRK</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">PLAYOFF</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/30">
+                    {% for s in standings %}
+                    {% set is_user = s.team_num == league.user_team_number %}
+                    {% set row_class = 'bg-primary/5' if is_user else 'hover:bg-surface-variant' %}
+                    <tr class="{{ row_class }} transition-colors">
+                        <td class="px-md py-md font-data-numeral text-center {% if s.rank <= standings|length // 2 %}text-primary font-bold{% else %}text-on-surface-variant{% endif %}">{{ s.rank }}</td>
+                        <td class="px-md py-md">
+                            <div class="flex items-center gap-md">
+                                <div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center font-bold text-xs {% if is_user %}text-secondary border border-secondary{% else %}text-on-surface-variant{% endif %}">
+                                    {{ s.team_num }}
+                                </div>
+                                <div>
+                                    <p class="font-bold text-on-surface text-sm {% if is_user %}text-secondary{% endif %}">{{ s.team_name }}</p>
+                                    <p class="text-[10px] text-outline">{{ s.roster_count }} players · {{ s.games }} GP</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-md py-md text-center font-data-numeral text-on-surface font-bold">{{ s.wins }}</td>
+                        <td class="px-md py-md text-center font-data-numeral text-on-surface">{{ s.losses }}</td>
+                        <td class="px-md py-md text-center font-data-numeral text-on-surface-variant">{{ s.ties }}</td>
+                        <td class="px-md py-md text-center font-data-numeral text-on-surface-variant">{{ "%.3f"|format(s.win_pct) }}</td>
+                        <td class="px-md py-md text-right font-data-numeral text-secondary font-bold">{{ "%.1f"|format(s.pf) }}</td>
+                        <td class="px-md py-md text-right font-data-numeral text-on-surface-variant">{{ "%.1f"|format(s.pa) }}</td>
+                        <td class="px-md py-md text-right font-data-numeral {% if s.diff > 0 %}text-primary{% elif s.diff < 0 %}text-error{% else %}text-on-surface-variant{% endif %}">
+                            {{ "%+.1f"|format(s.diff) }}
+                        </td>
+                        <td class="px-md py-md text-center">
+                            {% if s.streak %}
+                            <span class="font-label-caps text-[11px] {% if 'W' in s.streak %}text-secondary{% else %}text-error{% endif %}">{{ s.streak }}</span>
+                            {% else %}
+                            <span class="text-on-surface-variant text-xs">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-md py-md text-center">
+                            {% if s.playoff %}
+                            <span class="bg-secondary/10 text-secondary font-label-caps text-[10px] px-sm py-[2px] rounded border border-secondary/20">IN</span>
+                            {% else %}
+                            <span class="bg-surface-variant text-on-surface-variant font-label-caps text-[10px] px-sm py-[2px] rounded">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
                     {% else %}
-                    <p class="text-xs text-outline text-center py-md">—</p>
+                    <tr><td colspan="11" class="text-center py-lg text-on-surface-variant">
+                        <span class="material-symbols-outlined text-3xl block mb-sm" data-icon="leaderboard">leaderboard</span>
+                        No standings data yet. Set up weekly matchups on the <a href="/gameday" class="text-primary hover:underline">Game Day</a> page.
+                    </td></tr>
                     {% endfor %}
-                </div>
-            </div>
-            {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
+
+    <!-- Playoff Picture -->
+    {% if standings %}
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+        <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+            <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm mb-md">
+                <span class="material-symbols-outlined text-primary" data-icon="emoji_events" style="font-variation-settings: 'FILL' 1;">emoji_events</span>
+                Playoff Picture
+            </h3>
+            {% set playoff_teams = standings|selectattr('playoff', 'equalto', True)|list %}
+            {% if playoff_teams %}
+            <div class="space-y-sm">
+                {% for s in playoff_teams %}
+                <div class="flex items-center gap-md p-sm bg-surface-container-low rounded-lg border border-outline-variant">
+                    <span class="w-8 text-center font-bold text-primary">#{{ s.rank }}</span>
+                    <div class="flex-1">
+                        <p class="font-bold text-on-surface text-sm">{{ s.team_name }}</p>
+                    </div>
+                    <span class="font-data-numeral text-secondary font-bold">{{ s.wins }}-{{ s.losses }}{% if s.ties %}-{{ s.ties }}{% endif %}</span>
+                    <span class="bg-secondary/10 text-secondary font-label-caps text-[10px] px-sm py-[2px] rounded border border-secondary/20">CLINCHED</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-on-surface-variant text-sm">Playoff race hasn't started yet. Set up matchups to begin tracking.</p>
+            {% endif %}
+        </div>
+
+        <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+            <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm mb-md">
+                <span class="material-symbols-outlined text-secondary" data-icon="bar_chart" style="font-variation-settings: 'FILL' 1;">bar_chart</span>
+                League Leaders
+            </h3>
+            <div class="space-y-sm">
+                {% set top_pf = standings|sort(attribute='pf', reverse=True)|first %}
+                {% set top_diff = standings|sort(attribute='diff', reverse=True)|first %}
+                {% if top_pf %}
+                <div class="flex items-center gap-md p-sm bg-surface-container-low rounded-lg border border-outline-variant">
+                    <span class="material-symbols-outlined text-secondary" data-icon="bolt">bolt</span>
+                    <div class="flex-1">
+                        <p class="text-xs text-on-surface-variant">Most Points For</p>
+                        <p class="font-bold text-on-surface text-sm">{{ top_pf.team_name }} — {{ "%.1f"|format(top_pf.pf) }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                {% if top_diff %}
+                <div class="flex items-center gap-md p-sm bg-surface-container-low rounded-lg border border-outline-variant">
+                    <span class="material-symbols-outlined text-primary" data-icon="trending_up">trending_up</span>
+                    <div class="flex-1">
+                        <p class="text-xs text-on-surface-variant">Best Point Differential</p>
+                        <p class="font-bold text-on-surface text-sm">{{ top_diff.team_name }} — {{ "%+.1f"|format(top_diff.diff) }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                {% set best_streak = standings|selectattr('streak', '!=', '')|list|sort(attribute='wins', reverse=True)|first %}
+                {% if best_streak %}
+                <div class="flex items-center gap-md p-sm bg-surface-container-low rounded-lg border border-outline-variant">
+                    <span class="material-symbols-outlined text-tertiary" data-icon="local_fire_department">local_fire_department</span>
+                    <div class="flex-1">
+                        <p class="text-xs text-on-surface-variant">Hottest Streak</p>
+                        <p class="font-bold text-on-surface text-sm">{{ best_streak.team_name }} — {{ best_streak.streak }}</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Draft Board (existing, collapsed) -->
+    <details class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+        <summary class="px-lg py-md bg-surface-container-high font-headline-md text-headline-md text-on-surface cursor-pointer hover:bg-surface-container-higher transition-colors flex items-center gap-sm">
+            <span class="material-symbols-outlined text-outline" data-icon="expand_more">expand_more</span>
+            Draft Board · All Rosters
+        </summary>
+        <div class="p-lg overflow-x-auto custom-scrollbar">
+            <div class="flex gap-lg" style="min-width: max-content;">
+                {% for team_data in matrix %}
+                <div class="bg-surface-container-low rounded-xl border border-outline-variant p-md" style="width: 250px;">
+                    <div class="flex items-center gap-sm mb-md">
+                        <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center font-bold text-primary">{{ team_data.number }}</div>
+                        <div>
+                            <p class="font-bold text-on-surface text-sm">{{ team_data.name }}</p>
+                            <p class="font-label-caps text-[10px] text-outline">{{ team_data.pick_count }} picks</p>
+                        </div>
+                    </div>
+                    <div class="space-y-xs">
+                        {% for p in team_data.roster %}
+                        {% set col = {'QB': 'text-secondary-container', 'RB': 'text-secondary', 'WR': 'text-primary', 'TE': 'text-tertiary', 'K': 'text-on-surface-variant', 'DST': 'text-primary-fixed'}[p.position] %}
+                        <div class="bg-surface-container rounded px-sm py-xs flex items-center justify-between">
+                            <div class="flex items-center gap-sm min-w-0">
+                                <span class="font-label-caps text-[10px] {{ col }} w-6">{{ p.position }}</span>
+                                <span class="font-body-sm text-on-surface text-xs truncate max-w-[140px]">{{ p.name }}</span>
+                            </div>
+                            <span class="font-data-numeral text-[11px] text-outline">{{ "%.0f"|format(p.projected_points) }}</span>
+                        </div>
+                        {% else %}
+                        <p class="text-xs text-outline text-center py-md">—</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </details>
 </div>
 {% endblock %}
