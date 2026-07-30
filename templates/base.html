@@ -171,6 +171,10 @@
                 <span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
                 <span>Power Rankings</span>
             </a>
+            <a href="/playoff-sim" class="flex items-center gap-md px-md py-sm {% if active_page == 'playoff_sim' %}bg-secondary-container text-on-secondary-container rounded-lg font-bold translate-x-1{% else %}text-on-surface-variant hover:bg-surface-variant{% endif %} transition-all font-label-caps text-label-caps">
+                <span class="material-symbols-outlined" data-icon="crystal_ball">crystal_ball</span>
+                <span>Playoff Sim</span>
+            </a>
         </nav>
         <div class="mt-auto space-y-xs pt-md border-t border-outline-variant">
             <button onclick="window.location.href='/'" class="w-full bg-primary text-on-primary font-bold py-md rounded-lg hover:opacity-90 transition-opacity mb-md flex items-center justify-center gap-sm">
@@ -198,6 +202,7 @@
                 <a class="font-body-md {% if active_page == 'gameday' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/gameday">Game Day</a>
                 <a class="font-body-md {% if active_page == 'standings' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/standings">Standings</a>
                 <a class="font-body-md {% if active_page == 'power_rankings' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/power-rankings">Power Rankings</a>
+                <a class="font-body-md {% if active_page == 'playoff_sim' %}text-primary font-bold border-b-2 border-primary pb-1{% else %}text-on-surface-variant font-medium hover:text-primary-fixed{% endif %} transition-colors duration-200" href="/playoff-sim">Playoff Sim</a>
             </nav>
             <div class="flex items-center gap-md">
                 <a href="/leagues" class="text-on-surface-variant hover:text-primary transition-colors" title="Switch League">
@@ -253,7 +258,7 @@
 </div>
 
 <!-- Mobile Bottom Nav -->
-<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-dim border-t border-outline-variant grid grid-cols-5 items-center z-50">
+<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-dim border-t border-outline-variant grid grid-cols-6 items-center z-50">
     <a href="/" class="flex flex-col items-center justify-center {% if active_page == 'draft' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
         <span class="text-[10px] font-label-caps">DRAFT</span>
@@ -273,6 +278,10 @@
     <a href="/power-rankings" class="flex flex-col items-center justify-center {% if active_page == 'power_rankings' %}text-primary{% else %}text-on-surface-variant{% endif %}">
         <span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
         <span class="text-[10px] font-label-caps">POWER</span>
+    </a>
+    <a href="/playoff-sim" class="flex flex-col items-center justify-center {% if active_page == 'playoff_sim' %}text-primary{% else %}text-on-surface-variant{% endif %}">
+        <span class="material-symbols-outlined" data-icon="crystal_ball">crystal_ball</span>
+        <span class="text-[10px] font-label-caps">SIM</span>
     </a>
 </nav>
 

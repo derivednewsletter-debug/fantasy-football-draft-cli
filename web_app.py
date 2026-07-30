@@ -22,6 +22,11 @@ from src.storage import (
     set_user_leagues_dir,
 )
 from src.engine import recommend, recommend_ai, build_draft_matrix
+from src.playoff_sim import (
+    auto_simulate_rest_of_season,
+    get_current_standings as get_sim_standings,
+    get_remaining_weeks,
+)
 from src.live_data import (
     get_nfl_state,
     get_live_scores,
@@ -735,6 +740,56 @@ def power_rankings():
         league=league,
         rankings=rankings,
         active_page="power_rankings",
+        user=_get_user_context(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Playoff Simulator
+# ---------------------------------------------------------------------------
+
+@app.route("/playoff-sim")
+@login_required
+def playoff_simulator():
+    """Playoff simulator — run 'what if' scenarios on remaining weeks."""
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    sim_data = {
+        "remaining_weeks": get_remaining_weeks(league),
+        "current_standings": get_sim_standings(league),
+        "avg_standings": None,
+        "playoff_odds": None,
+        "scenarios": {"best": None, "worst": None},
+        "simulations_ran": 0,
+        "user_best_rank": None,
+        "user_worst_rank": None,
+        "user_current_rank": None,
+    }
+
+    current = sim_data["current_standings"]
+    user_s = None
+    for s in current:
+        if s["team_num"] == league.user_team_number:
+            user_s = s
+            sim_data["user_current_rank"] = s["rank"]
+            break
+
+    auto_sim = request.args.get("auto")
+    if auto_sim:
+        num_sims = int(request.args.get("sims", 100))
+        result = auto_simulate_rest_of_season(league, num_simulations=num_sims)
+        sim_data.update(result)
+
+    auto_sim_running = bool(request.args.get("auto"))
+
+    return render_template(
+        "playoff_sim.html",
+        league=league,
+        sim_data=sim_data,
+        auto_sim_running=auto_sim_running,
+        active_page="playoff_sim",
         user=_get_user_context(),
     )
 

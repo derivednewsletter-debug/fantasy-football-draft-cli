@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% block title %}Playoff Simulator{% endblock %}
+
+{% block content %}
+<div class="p-lg space-y-lg max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-md">
+        <div>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface flex items-center gap-sm">
+                <span class="material-symbols-outlined text-primary" data-icon="crystal_ball">crystal_ball</span>
+                Playoff Simulator
+            </h2>
+            <p class="font-body-sm text-on-surface-variant">
+                Run "what if" scenarios on remaining weeks to see how seeding changes
+            </p>
+        </div>
+        <div class="flex items-center gap-sm">
+            <span class="bg-surface-container-high px-md py-sm rounded-lg border border-outline-variant font-label-caps text-[10px] text-outline">
+                {{ sim_data.remaining_weeks if sim_data else '?' }} weeks remaining
+            </span>
+            <span class="bg-surface-container-high px-md py-sm rounded-lg border border-outline-variant font-label-caps text-[10px] text-outline">
+                {{ league.num_teams // 2 }}/{{ league.num_teams }} make playoffs
+            </span>
+        </div>
+    </div>
+
+    {% if sim_data and sim_data.remaining_weeks > 0 %}
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-md">
+        <button onclick="document.getElementById('simModal').classList.remove('hidden')"
+            class="bg-primary text-on-primary px-lg py-md rounded-lg font-bold text-sm hover:opacity-90 transition-all flex items-center gap-sm">
+            <span class="material-symbols-outlined" data-icon="play_arrow">play_arrow</span>
+            Run Monte Carlo Simulation
+        </button>
+        <a href="/playoff-sim?auto=1"
+            class="bg-secondary-container text-on-secondary-container px-lg py-md rounded-lg font-bold text-sm hover:opacity-90 transition-all flex items-center gap-sm">
+            <span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+            Auto-Simulate {{ sim_data.remaining_weeks }} Weeks
+        </a>
+        <a href="/playoff-sim?reset=1"
+            class="bg-surface-container-high text-on-surface-variant px-lg py-md rounded-lg font-bold text-sm hover:bg-surface-variant transition-all flex items-center gap-sm border border-outline-variant">
+            <span class="material-symbols-outlined" data-icon="refresh">refresh</span>
+            Reset
+        </a>
+    </div>
+
+    <!-- Scenario Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+        <!-- Best Case -->
+        <div class="bg-surface-container rounded-xl border border-secondary/40 p-lg fade-in">
+            <div class="flex items-center gap-sm mb-md">
+                <span class="material-symbols-outlined text-secondary" data-icon="trending_up">trending_up</span>
+                <h3 class="font-headline-md text-headline-md text-secondary">Best Case</h3>
+            </div>
+            {% if sim_data.user_best_rank %}
+            <p class="font-headline-lg text-headline-lg text-on-surface">#{{ sim_data.user_best_rank }}</p>
+            <p class="text-xs text-on-surface-variant">Your best possible finish</p>
+            <div class="mt-md space-y-xs">
+                {% for s in (sim_data.scenarios.best or [])[:6] %}
+                {% if s.team_num == league.user_team_number %}
+                <div class="bg-secondary/10 px-sm py-xs rounded flex justify-between items-center border border-secondary/20">
+                    <span class="font-bold text-sm text-secondary">{{ s.team_name }}</span>
+                    <span class="font-data-numeral text-secondary">{{ s.wins }}-{{ s.losses }}</span>
+                </div>
+                {% else %}
+                <div class="flex justify-between items-center text-xs {% if s.playoff %}text-on-surface{% else %}text-on-surface-variant{% endif %}">
+                    <span>#{{ s.rank }} {{ s.team_name }}</span>
+                    <span>{{ s.wins }}-{{ s.losses }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-on-surface-variant">Run a simulation to see best case.</p>
+            {% endif %}
+        </div>
+
+        <!-- Most Likely -->
+        <div class="bg-surface-container rounded-xl border border-primary/40 p-lg fade-in" style="animation-delay: 100ms;">
+            <div class="flex items-center gap-sm mb-md">
+                <span class="material-symbols-outlined text-primary" data-icon="bar_chart">bar_chart</span>
+                <h3 class="font-headline-md text-headline-md text-primary">Most Likely</h3>
+            </div>
+            {% if sim_data.avg_standings %}
+            <p class="text-xs text-on-surface-variant mb-sm">Average finish ({{ sim_data.simulations_ran }} sims)</p>
+            <div class="space-y-xs">
+                {% for s in sim_data.avg_standings[:6] %}
+                {% set odds = sim_data.playoff_odds.get(s.team_num|string, 0) %}
+                {% if s.team_num == league.user_team_number %}
+                <div class="bg-primary/10 px-sm py-xs rounded flex justify-between items-center border border-primary/20">
+                    <span class="font-bold text-sm text-primary">{{ s.team_name }}</span>
+                    <span class="font-data-numeral text-primary">{{ s.avg_wins }} wins</span>
+                </div>
+                {% else %}
+                <div class="flex justify-between items-center text-xs {% if odds > 50 %}text-on-surface{% else %}text-on-surface-variant{% endif %}">
+                    <span>#{{ s.rank }} {{ s.team_name }}</span>
+                    <span>{{ s.avg_wins }} wins · {{ odds }}%</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-on-surface-variant">Run a simulation to see projected standings.</p>
+            {% endif %}
+        </div>
+
+        <!-- Worst Case -->
+        <div class="bg-surface-container rounded-xl border border-error/40 p-lg fade-in" style="animation-delay: 200ms;">
+            <div class="flex items-center gap-sm mb-md">
+                <span class="material-symbols-outlined text-error" data-icon="trending_down">trending_down</span>
+                <h3 class="font-headline-md text-headline-md text-error">Worst Case</h3>
+            </div>
+            {% if sim_data.user_worst_rank %}
+            <p class="font-headline-lg text-headline-lg text-on-surface">#{{ sim_data.user_worst_rank }}</p>
+            <p class="text-xs text-on-surface-variant">Your worst possible finish</p>
+            <div class="mt-md space-y-xs">
+                {% for s in (sim_data.scenarios.worst or [])[:6] %}
+                {% if s.team_num == league.user_team_number %}
+                <div class="bg-error/10 px-sm py-xs rounded flex justify-between items-center border border-error/20">
+                    <span class="font-bold text-sm text-error">{{ s.team_name }}</span>
+                    <span class="font-data-numeral text-error">{{ s.wins }}-{{ s.losses }}</span>
+                </div>
+                {% else %}
+                <div class="flex justify-between items-center text-xs {% if s.playoff %}text-on-surface{% else %}text-on-surface-variant{% endif %}">
+                    <span>#{{ s.rank }} {{ s.team_name }}</span>
+                    <span>{{ s.wins }}-{{ s.losses }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-on-surface-variant">Run a simulation to see worst case.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Playoff Odds Table -->
+    <div class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+        <div class="px-lg py-md bg-surface-container-high border-b border-outline-variant">
+            <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+                <span class="material-symbols-outlined text-secondary" data-icon="monitoring">monitoring</span>
+                Playoff Odds
+            </h3>
+        </div>
+        <div class="p-lg">
+            {% if sim_data.playoff_odds %}
+            <div class="space-y-sm">
+                {% for s in sim_data.avg_standings %}
+                {% set odds = sim_data.playoff_odds.get(s.team_num|string, 0) %}
+                {% set is_user = s.team_num == league.user_team_number %}
+                <div class="flex items-center gap-md {% if is_user %}bg-primary/5 rounded-lg px-sm py-xs{% endif %}">
+                    <span class="w-6 text-center font-data-numeral text-sm {% if s.rank <= league.num_teams // 2 %}text-primary font-bold{% else %}text-on-surface-variant{% endif %}">{{ s.rank }}</span>
+                    <div class="flex-1">
+                        <p class="font-bold text-sm {% if is_user %}text-primary{% else %}text-on-surface{% endif %}">{{ s.team_name }}</p>
+                    </div>
+                    <div class="w-48">
+                        <div class="flex items-center gap-sm">
+                            <div class="flex-1 h-2 bg-surface-variant rounded-full overflow-hidden">
+                                <div class="h-full rounded-full transition-all duration-700
+                                    {% if odds >= 80 %}bg-secondary
+                                    {% elif odds >= 50 %}bg-primary
+                                    {% elif odds >= 20 %}bg-tertiary
+                                    {% else %}bg-surface-container-high{% endif %}"
+                                    style="width: {{ odds }}%">
+                                </div>
+                            </div>
+                            <span class="font-data-numeral text-xs w-12 text-right
+                                {% if odds >= 80 %}text-secondary
+                                {% elif odds >= 50 %}text-primary
+                                {% else %}text-on-surface-variant{% endif %}">
+                                {{ odds }}%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <p class="text-[10px] text-outline mt-md">Based on {{ sim_data.simulations_ran }} Monte Carlo simulations</p>
+            {% else %}
+            <p class="text-sm text-on-surface-variant text-center py-lg">Run a simulation to see playoff odds.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% else %}
+
+    <!-- Empty / Complete State -->
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg text-center">
+        <span class="material-symbols-outlined text-5xl text-outline block mb-md" data-icon="crystal_ball">crystal_ball</span>
+        <h3 class="font-headline-md text-headline-md text-on-surface mb-sm">
+            {% if sim_data and sim_data.remaining_weeks == 0 %}
+            Regular Season Complete
+            {% else %}
+            No Simulation Data Yet
+            {% endif %}
+        </h3>
+        <p class="text-sm text-on-surface-variant max-w-md mx-auto">
+            {% if sim_data and sim_data.remaining_weeks == 0 %}
+            All weeks have been finalized. Check the
+            <a href="/standings" class="text-primary hover:underline">Standings</a>
+            page for final playoff results.
+            {% else %}
+            Finalize some matchups on the
+            <a href="/gameday" class="text-primary hover:underline">Game Day</a>
+            page first, then return here to simulate the rest of the season.
+            {% endif %}
+        </p>
+    </div>
+
+    {% endif %}
+
+    <!-- Current Standings Reference -->
+    <details class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+        <summary class="px-lg py-md bg-surface-container-high font-headline-md text-headline-md text-on-surface cursor-pointer hover:bg-surface-container-higher transition-colors flex items-center gap-sm">
+            <span class="material-symbols-outlined text-outline" data-icon="expand_more">expand_more</span>
+            Current Standings
+        </summary>
+        <div class="p-lg overflow-x-auto">
+            {% set current = sim_data.current_standings if sim_data and sim_data.current_standings else [] %}
+            {% if current %}
+            <table class="w-full text-left">
+                <thead class="bg-surface-container-high">
+                    <tr class="border-b border-outline-variant">
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline">RK</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline">TEAM</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">W</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">L</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">PF</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">DIFF</th>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">PLAYOFF</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/30">
+                    {% for s in current %}
+                    {% set is_user = s.team_num == league.user_team_number %}
+                    <tr class="{% if is_user %}bg-primary/5{% else %}hover:bg-surface-variant{% endif %} transition-colors">
+                        <td class="px-md py-sm font-data-numeral text-center {% if s.playoff %}text-primary font-bold{% endif %}">{{ s.rank }}</td>
+                        <td class="px-md py-sm">
+                            <span class="font-bold text-sm {% if is_user %}text-secondary{% else %}text-on-surface{% endif %}">{{ s.team_name }}</span>
+                        </td>
+                        <td class="px-md py-sm text-center font-data-numeral">{{ s.wins }}</td>
+                        <td class="px-md py-sm text-center font-data-numeral">{{ s.losses }}</td>
+                        <td class="px-md py-sm text-center font-data-numeral">{{ "%.1f"|format(s.pf) }}</td>
+                        <td class="px-md py-sm text-center font-data-numeral {% if s.diff > 0 %}text-primary{% elif s.diff < 0 %}text-error{% endif %}">{{ "%+.1f"|format(s.diff) }}</td>
+                        <td class="px-md py-sm text-center">
+                            {% if s.playoff %}
+                            <span class="bg-secondary/10 text-secondary font-label-caps text-[10px] px-sm py-[1px] rounded border border-secondary/20">IN</span>
+                            {% else %}
+                            <span class="text-on-surface-variant text-xs">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-sm text-on-surface-variant text-center py-md">No standings data yet.</p>
+            {% endif %}
+        </div>
+    </details>
+</div>
+
+<!-- Simulation Modal -->
+<div id="simModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg max-w-md w-full mx-md fade-in">
+        <h3 class="font-headline-md text-headline-md text-on-surface mb-md flex items-center gap-sm">
+            <span class="material-symbols-outlined text-primary" data-icon="crystal_ball">crystal_ball</span>
+            Monte Carlo Simulation
+        </h3>
+        <p class="text-sm text-on-surface-variant mb-lg">
+            Run {{ sim_data.simulations_ran if sim_data else 100 }} simulations of the remaining {{ sim_data.remaining_weeks if sim_data else 0 }} weeks
+            to calculate playoff odds. Uses roster strength to determine most likely winners.
+        </p>
+        <div class="flex gap-md">
+            <a href="/playoff-sim?auto=1&sims=100"
+                class="flex-1 bg-primary text-on-primary text-center py-md rounded-lg font-bold text-sm hover:opacity-90 transition-all">
+                Run 100 Sims
+            </a>
+            <a href="/playoff-sim?auto=1&sims=1000"
+                class="flex-1 bg-secondary-container text-on-secondary-container text-center py-md rounded-lg font-bold text-sm hover:opacity-90 transition-all">
+                Run 1,000 Sims
+            </a>
+        </div>
+        <button onclick="document.getElementById('simModal').classList.add('hidden')"
+            class="w-full mt-md py-sm text-center text-sm text-on-surface-variant hover:text-on-surface transition-colors">
+            Cancel
+        </button>
+    </div>
+</div>
+
+<!-- Auto-sim progress indicator -->
+{% if auto_sim_running %}
+<div class="fixed bottom-lg right-lg z-[100] bg-surface-container-high border border-primary/30 rounded-xl p-md shadow-lg fade-in flex items-center gap-md">
+    <div class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+    <div>
+        <p class="font-bold text-sm text-on-surface">Simulating...</p>
+        <p class="text-xs text-on-surface-variant">Calculating playoff odds</p>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    // Close modal on escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.getElementById('simModal')?.classList.add('hidden');
+        }
+    });
+</script>
+{% endblock %}
