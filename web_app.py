@@ -735,11 +735,13 @@ def power_rankings():
         return redirect(url_for("leagues"))
 
     rankings = compute_power_rankings(league)
+    heatmap = compute_roster_heatmap(league)
 
     return render_template(
         "power_rankings.html",
         league=league,
         rankings=rankings,
+        heatmap=heatmap,
         active_page="power_rankings",
         user=_get_user_context(),
     )
@@ -1157,6 +1159,87 @@ def waiver_drop():
         flash(f"✗ Dropped {match} ({player.position}). Roster spot freed.", "success")
 
     return redirect(url_for("waiver_wire"))
+
+
+# ---------------------------------------------------------------------------
+# Roster Heatmap (for Power Rankings)
+# ---------------------------------------------------------------------------
+
+def compute_roster_heatmap(league: League) -> dict:
+    """
+    Build a positional depth heatmap across all teams.
+    Returns {positions: ["QB","RB",...], teams: [{team_num, name, cells: {QB: {count, needed, pct, status}}}]}
+    """
+    skill_positions = ["QB", "RB", "WR", "TE", "K", "DST"]
+    heatmap_teams = []
+
+    flex_slots = league.roster_slots.get("FLEX", 0)
+    for t in league.teams:
+        cells = {}
+        for pos in skill_positions:
+            count = sum(1 for p in t.roster if p.position == pos)
+            needed = league.roster_slots.get(pos, 0)
+            # FLEX is a shared slot — don't add it to each position's needs
+            # Instead assess each position against its own slot requirement
+            remaining = count - needed
+
+            if needed == 0:
+                status = "na"
+            elif count >= needed + 3:
+                status = "stacked"
+            elif count >= needed + 2:
+                status = "good"
+            elif count >= needed:
+                status = "adequate"
+            elif count > 0:
+                status = "thin"
+            else:
+                status = "empty"
+
+            cells[pos] = {
+                "count": count,
+                "needed": needed,
+                "status": status,
+                "remaining": remaining,
+            }
+
+        # Combined FLEX assessment: check if total RB+WR+TE depth covers FLEX
+        flex_eligible = sum(1 for p in t.roster if p.position in ("RB", "WR", "TE"))
+        flex_starter_needs = sum(league.roster_slots.get(p, 0) for p in ("RB", "WR", "TE"))
+        flex_depth = flex_eligible - flex_starter_needs
+        cells["FLEX"] = {
+            "count": flex_depth,
+            "needed": flex_slots,
+            "status": "good" if flex_depth >= flex_slots else ("adequate" if flex_depth > 0 else "thin"),
+            "remaining": flex_depth,
+        }
+
+        # Bench
+        bench_needed = league.roster_slots.get("BENCH", 6)
+        starter_slots = sum(league.roster_slots.get(p, 0) for p in skill_positions) + flex_slots
+        bench_count = max(0, len(t.roster) - starter_slots)
+        cells["BENCH"] = {
+            "count": bench_count,
+            "needed": bench_needed,
+            "status": "good" if bench_count >= bench_needed else ("adequate" if bench_count >= bench_needed // 2 else "thin"),
+            "remaining": bench_count,
+        }
+
+        heatmap_teams.append({
+            "team_num": t.number,
+            "name": t.name,
+            "cells": cells,
+        })
+
+    # Sort by team number (matching power rankings order)
+    heatmap_teams.sort(key=lambda x: x["team_num"])
+
+    positions = skill_positions + ["FLEX", "BENCH"]
+
+    return {
+        "positions": positions,
+        "teams": heatmap_teams,
+    }
 
 
 # ---------------------------------------------------------------------------

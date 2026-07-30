@@ -136,6 +136,65 @@
         {% endfor %}
     </div>
 
+    <!-- Roster Strength Heatmap -->
+    {% if heatmap and heatmap.teams %}
+    <section class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+        <div class="px-lg py-md bg-surface-container-high border-b border-outline-variant">
+            <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+                <span class="material-symbols-outlined text-primary" data-icon="grid_on">grid_on</span>
+                Roster Strength Heatmap
+            </h3>
+            <p class="text-xs text-on-surface-variant mt-xs">Color-coded positional depth across all teams</p>
+        </div>
+        <div class="p-lg overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left min-w-[600px]">
+                <thead>
+                    <tr>
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline w-40">TEAM</th>
+                        {% for pos in heatmap.positions %}
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center w-16">{{ pos }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/30">
+                    {% for t in heatmap.teams %}
+                    {% set is_user = t.team_num == league.user_team_number %}
+                    <tr class="{% if is_user %}bg-primary/5{% else %}hover:bg-surface-variant{% endif %} transition-colors">
+                        <td class="px-md py-sm">
+                            <span class="font-bold text-sm {% if is_user %}text-secondary{% else %}text-on-surface{% endif %}">{{ t.name }}</span>
+                        </td>
+                        {% for pos in heatmap.positions %}
+                        {% set cell = t.cells.get(pos, {}) %}
+                        {% set status = cell.status or 'na' %}
+                        <td class="px-md py-sm text-center rounded-lg
+                            {%- if status == 'stacked' %} bg-secondary/20 text-secondary
+                            {%- elif status == 'good' %} bg-primary/15 text-primary
+                            {%- elif status == 'adequate' %} bg-tertiary/15 text-tertiary
+                            {%- elif status == 'thin' %} bg-error/15 text-error
+                            {%- elif status == 'empty' %} bg-surface-variant text-outline
+                            {%- else %} bg-transparent text-outline{% endif %}" title="{{ pos }}: {{ cell.count }}/{{ cell.needed }}">
+                            <span class="font-data-numeral text-xs font-bold {% if status == 'stacked' %}text-secondary{% elif status == 'good' %}text-primary{% elif status == 'adequate' %}text-tertiary{% elif status == 'thin' %}text-error{% else %}text-outline{% endif %}">
+                                {{ cell.count }}
+                            </span>
+                            <span class="text-[9px] text-outline">/{{ cell.needed }}</span>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Legend -->
+        <div class="px-lg py-sm bg-surface-container-high border-t border-outline-variant flex flex-wrap gap-lg text-[10px] font-label-caps">
+            <span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-sm bg-secondary/20"></span> Stacked (3+ extra)</span>
+            <span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-sm bg-primary/15"></span> Good (2 extra)</span>
+            <span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-sm bg-tertiary/15"></span> Adequate (need met)</span>
+            <span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-sm bg-error/15"></span> Thin (below need)</span>
+            <span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-sm bg-surface-variant"></span> None (0 players)</span>
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Summary Section -->
     <section class="grid grid-cols-1 md:grid-cols-3 gap-lg mt-lg">
         <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
