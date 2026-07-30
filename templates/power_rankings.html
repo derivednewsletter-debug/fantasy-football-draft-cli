@@ -20,6 +20,91 @@
     </div>
 
     {% if rankings %}
+
+    <!-- Season Trajectory Chart -->
+    {% if has_trajectory %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const trajData = {{ trajectory_json|safe }};
+        if (!trajData || !trajData.datasets) return;
+
+        const ctx = document.getElementById('trajectoryChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: trajData.labels,
+                datasets: trajData.datasets.map(function(ds) {
+                    const isUser = ds.team_num === {{ league.user_team_number }};
+                    return {
+                        label: ds.name,
+                        data: ds.data,
+                        borderColor: ds.color,
+                        backgroundColor: ds.color + '15',
+                        borderWidth: isUser ? 3 : 1.5,
+                        borderDash: isUser ? [] : [4, 3],
+                        pointRadius: isUser ? 5 : 2,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: ds.color,
+                        tension: 0.3,
+                        fill: false,
+                    };
+                }),
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#171f33',
+                        titleColor: '#dae2fd',
+                        bodyColor: '#bccac0',
+                        borderColor: '#3d4a42',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 8,
+                    },
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: { color: '#2d344940', drawBorder: false },
+                        ticks: { color: '#87948b', font: { size: 11, family: 'JetBrains Mono' } },
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#87948b', font: { size: 10 } },
+                    },
+                },
+                animations: { tension: { duration: 1000, easing: 'easeOutQuad' } },
+            },
+        });
+    });
+    </script>
+
+    <section class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+        <div class="px-lg py-md bg-surface-container-high border-b border-outline-variant flex items-center justify-between">
+            <div>
+                <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+                    <span class="material-symbols-outlined text-primary" data-icon="show_chart">show_chart</span>
+                    Season Trajectory
+                </h3>
+                <p class="text-xs text-on-surface-variant mt-xs">Composite score week-over-week (solid line = your team)</p>
+            </div>
+            <div class="flex items-center gap-sm text-[10px] text-outline font-label-caps">
+                <span class="flex items-center gap-xs"><span class="w-3 h-0 border-t-2 border-on-surface"></span> Your team</span>
+                <span class="flex items-center gap-xs"><span class="w-3 h-0 border-t border-dashed border-outline"></span> Other teams</span>
+            </div>
+        </div>
+        <div class="p-lg" style="height: 360px;">
+            <canvas id="trajectoryChart"></canvas>
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Power Rankings Cards -->
     <div class="space-y-sm">
         {% for r in rankings %}

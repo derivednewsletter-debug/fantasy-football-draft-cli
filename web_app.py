@@ -736,12 +736,20 @@ def power_rankings():
 
     rankings = compute_power_rankings(league)
     heatmap = compute_roster_heatmap(league)
+    trajectory = compute_power_rankings_trajectory(league)
+
+    # Serialize trajectory for Chart.js
+    has_trajectory = bool(trajectory and trajectory.get("datasets"))
+    trajectory_json = json.dumps(trajectory) if has_trajectory else "null"
 
     return render_template(
         "power_rankings.html",
         league=league,
         rankings=rankings,
         heatmap=heatmap,
+        trajectory=trajectory,
+        trajectory_json=trajectory_json,
+        has_trajectory=has_trajectory,
         active_page="power_rankings",
         user=_get_user_context(),
     )
@@ -1239,6 +1247,103 @@ def compute_roster_heatmap(league: League) -> dict:
     return {
         "positions": positions,
         "teams": heatmap_teams,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Power Rankings Trajectory
+# ---------------------------------------------------------------------------
+
+def compute_power_rankings_trajectory(league: League) -> dict | None:
+    """
+    Compute week-over-week composite score for each team.
+    Re-runs power rankings at each completed week cutoff.
+    Returns {labels: ["Wk 1", ...], datasets: [{team_num, name, data: [score, ...], color}]}
+    or None if fewer than 2 weeks.
+    """
+    results = league.matchup_results or {}
+    week_keys = sorted(results.keys(), key=lambda w: int(w.split("_")[0]) if "_" in w else int(w))
+
+    if len(week_keys) < 2:
+        return None
+
+    labels = []
+    for wk in week_keys:
+        clean = wk.replace("_", " ").replace("manual ", "").replace("sim ", "")
+        labels.append(f"Wk {clean}")
+
+    team_colors = [
+        "#68dba9", "#4edea3", "#25a475", "#00a572", "#45dfa4",
+        "#85f8c4", "#6ffbbe", "#68fcbf", "#00a574", "#4edea3",
+        "#68dba9", "#45dfa4",
+    ]
+
+    # For each team, collect composite at each week
+    team_data: dict[int, dict] = {}
+    for t in league.teams:
+        team_data[t.number] = {
+            "team_num": t.number,
+            "name": t.name,
+            "data": [],
+            "color": team_colors[(t.number - 1) % len(team_colors)],
+        }
+
+    # Build cumulative results per week
+    cumulative = {}
+    for wk in week_keys:
+        cumulative[wk] = results[wk]
+
+        # Compute standings from all weeks up to this one
+        simulated_results = dict(cumulative)
+
+        # Build team stats
+        team_stats: dict[int, dict] = {}
+        for t in league.teams:
+            n = t.number
+            team_stats[n] = {"wins": 0, "losses": 0, "ties": 0, "pf": 0.0, "pa": 0.0}
+
+        for week_str, week_data in simulated_results.items():
+            for t_num_str, m in week_data.items():
+                tn = int(t_num_str)
+                if tn in team_stats:
+                    team_stats[tn]["pf"] += m.get("pf", 0)
+                    team_stats[tn]["pa"] += m.get("pa", 0)
+                    r = m.get("result", "")
+                    if r == "W":
+                        team_stats[tn]["wins"] += 1
+                    elif r == "L":
+                        team_stats[tn]["losses"] += 1
+                    elif r == "T":
+                        team_stats[tn]["ties"] += 1
+
+        # Compute composite score for each team at this week
+        max_wins = max((s["wins"] for s in team_stats.values()), default=1)
+        max_pf = max((s["pf"] for s in team_stats.values()), default=1)
+
+        # Roster strength and waivers are global (same for all weeks)
+        max_roster = max((sum(p.projected_points for p in t.roster) for t in league.teams), default=1)
+        max_waivers = max((t.waiver_moves for t in league.teams), default=1)
+
+        for tn, s in team_stats.items():
+            team = league.teams[tn - 1]
+            wins = s["wins"]
+            pf = s["pf"]
+
+            win_score = (wins / max_wins) * 100 if max_wins > 0 else 0
+            pf_score = (pf / max_pf) * 100 if max_pf > 0 else 0
+            roster_score = (sum(p.projected_points for p in team.roster) / max_roster) * 100
+            waiver_score = (team.waiver_moves / max_waivers) * 100 if max_waivers > 0 else 50
+
+            composite = (win_score + pf_score + roster_score + waiver_score) / 4
+            team_data[tn]["data"].append(round(composite, 1))
+
+    datasets = list(team_data.values())
+    datasets.sort(key=lambda d: d["data"][-1] if d["data"] else 0, reverse=True)
+
+    return {
+        "labels": labels,
+        "datasets": datasets,
+        "week_count": len(week_keys),
     }
 
 
