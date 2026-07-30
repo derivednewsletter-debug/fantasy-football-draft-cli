@@ -66,7 +66,7 @@ def create_user(email: str, password: str) -> tuple[bool, str]:
 
     user_data = {
         "email": email,
-        "password_hash": generate_password_hash(password),
+        "password_hash": generate_password_hash(password, method="pbkdf2:sha256"),
         "leagues": {},
     }
 
