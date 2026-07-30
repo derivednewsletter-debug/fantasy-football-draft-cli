@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+{% block title %}Waiver Wire{% endblock %}
+
+{% block content %}
+<div class="p-lg space-y-lg max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-md">
+        <div>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface flex items-center gap-sm">
+                <span class="material-symbols-outlined text-secondary" data-icon="swap_horizontal_circle">swap_horizontal_circle</span>
+                Waiver Wire
+            </h2>
+            <p class="font-body-sm text-on-surface-variant">
+                Free agents, add/drop management, and FAAB budget tracking
+            </p>
+        </div>
+        {% if user_team and league.completed %}
+        <div class="flex items-center gap-md">
+            <div class="bg-surface-container-high px-md py-sm rounded-lg border border-outline-variant text-center">
+                <p class="font-label-caps text-[10px] text-outline">FAAB REMAINING</p>
+                <p class="font-headline-md text-headline-md text-primary font-bold">${{ "%.0f"|format(user_team.faab_budget) }}</p>
+            </div>
+            <div class="bg-surface-container-high px-md py-sm rounded-lg border border-outline-variant text-center">
+                <p class="font-label-caps text-[10px] text-outline">WAIVER MOVES</p>
+                <p class="font-headline-md text-headline-md text-secondary font-bold">{{ user_team.waiver_moves }}</p>
+            </div>
+            <div class="bg-surface-container-high px-md py-sm rounded-lg border border-outline-variant text-center">
+                <p class="font-label-caps text-[10px] text-outline">ROSTER</p>
+                <p class="font-headline-md text-headline-md text-on-surface font-bold">{{ user_team.roster|length }}/{{ total_slots }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if not league or not league.completed %}
+    <!-- Draft not complete state -->
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg text-center">
+        <span class="material-symbols-outlined text-5xl text-outline block mb-md" data-icon="swap_horizontal_circle">swap_horizontal_circle</span>
+        <h3 class="font-headline-md text-headline-md text-on-surface mb-sm">Complete the Draft First</h3>
+        <p class="text-sm text-on-surface-variant max-w-md mx-auto">
+            The waiver wire is available after the draft is complete.
+            <a href="/" class="text-primary hover:underline">Return to the draft room</a> to finish your draft.
+        </p>
+    </div>
+
+    {% else %}
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+        <!-- Left: Available Players -->
+        <div class="lg:col-span-2 space-y-md">
+            <div class="flex items-center justify-between">
+                <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+                    <span class="material-symbols-outlined text-primary" data-icon="person_search">person_search</span>
+                    Available Free Agents
+                </h3>
+                <span class="bg-surface-container-high px-sm py-xs rounded border border-outline-variant font-label-caps text-[10px] text-outline">{{ free_agents|length }} players</span>
+            </div>
+
+            <!-- Search / Filter -->
+            <div class="bg-surface-container-low px-md py-sm rounded-lg border border-outline-variant flex items-center gap-sm">
+                <span class="material-symbols-outlined text-outline text-sm" data-icon="search">search</span>
+                <input class="bg-transparent border-none focus:ring-0 text-body-sm w-full text-on-surface placeholder:text-outline" placeholder="Search free agents..." type="text" id="faSearch" oninput="filterFreeAgents(this.value)"/>
+            </div>
+
+            <!-- Players Table -->
+            <div class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+                <div class="overflow-x-auto custom-scrollbar max-h-[600px] overflow-y-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-surface-container-high sticky top-0 z-10">
+                            <tr class="border-b border-outline-variant">
+                                <th class="px-md py-sm font-label-caps text-[10px] text-outline w-8">#</th>
+                                <th class="px-md py-sm font-label-caps text-[10px] text-outline">PLAYER</th>
+                                <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">POS</th>
+                                <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">TEAM</th>
+                                <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">PROJ</th>
+                                <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">ADP</th>
+                                <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">TIER</th>
+                                <th class="px-md py-sm font-label-caps text-[10px] text-outline text-right">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/30">
+                            {% for p in free_agents[:75] %}
+                            {% set pos_colors = {'QB': 'text-secondary-container', 'RB': 'text-secondary', 'WR': 'text-primary', 'TE': 'text-tertiary', 'K': 'text-on-surface-variant', 'DST': 'text-primary-fixed'} %}
+                            <tr class="fa-row hover:bg-surface-variant transition-colors" data-name="{{ p.name|lower }}">
+                                <td class="px-md py-sm font-data-numeral text-xs text-on-surface-variant">{{ loop.index }}</td>
+                                <td class="px-md py-sm">
+                                    <div class="flex items-center gap-sm">
+                                        <div class="w-8 h-8 rounded bg-surface-bright flex items-center justify-center text-xs font-bold {{ pos_colors.get(p.position, 'text-on-surface-variant') }}">
+                                            {{ p.position }}
+                                        </div>
+                                        <div>
+                                            <p class="font-bold text-sm text-on-surface">{{ p.name }}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-md py-sm text-center font-label-caps text-xs {{ pos_colors.get(p.position, 'text-on-surface-variant') }}">{{ p.position }}</td>
+                                <td class="px-md py-sm text-center font-data-numeral text-xs text-on-surface-variant">{{ p.team }}</td>
+                                <td class="px-md py-sm text-center font-data-numeral text-xs text-secondary font-bold">{{ "%.0f"|format(p.projected_points) }}</td>
+                                <td class="px-md py-sm text-center font-data-numeral text-xs text-on-surface-variant">{{ "%.1f"|format(p.adp) if p.adp < 200 else '—' }}</td>
+                                <td class="px-md py-sm text-center">
+                                    <span class="bg-surface-variant text-on-surface-variant font-label-caps text-[10px] px-sm py-[1px] rounded">{{ "T%d"|format(p.tier) }}</span>
+                                </td>
+                                <td class="px-md py-sm text-right">
+                                    <button onclick="openClaimModal('{{ p.name|e }}', '{{ p.position }}', '{{ p.team }}')"
+                                        class="bg-primary/10 text-primary font-label-caps text-[10px] px-md py-sm rounded hover:bg-primary hover:text-on-primary transition-all border border-primary/30">
+                                        CLAIM
+                                    </button>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="8" class="text-center py-lg text-on-surface-variant text-sm">No free agents available.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if free_agents|length > 75 %}
+                <div class="px-md py-sm bg-surface-container-high border-t border-outline-variant text-center text-xs text-outline">
+                    Showing top 75 of {{ free_agents|length }} free agents
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right: My Roster + Claims -->
+        <div class="space-y-md">
+            <!-- My Roster -->
+            <div class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+                <div class="px-md py-md bg-surface-container-high border-b border-outline-variant">
+                    <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+                        <span class="material-symbols-outlined text-secondary" data-icon="group">group</span>
+                        My Roster
+                    </h3>
+                </div>
+                <div class="p-md space-y-xs max-h-[400px] overflow-y-auto custom-scrollbar">
+                    {% for p in user_team.roster %}
+                    {% set pos_colors = {'QB': 'text-secondary-container', 'RB': 'text-secondary', 'WR': 'text-primary', 'TE': 'text-tertiary', 'K': 'text-on-surface-variant', 'DST': 'text-primary-fixed'} %}
+                    <div class="flex items-center justify-between bg-surface-container-low rounded-lg px-sm py-xs border border-outline-variant group">
+                        <div class="flex items-center gap-sm min-w-0">
+                            <span class="font-label-caps text-[10px] w-6 {{ pos_colors.get(p.position, 'text-on-surface-variant') }}">{{ p.position }}</span>
+                            <span class="font-body-sm text-sm text-on-surface truncate max-w-[120px]">{{ p.name }}</span>
+                            <span class="font-data-numeral text-[10px] text-outline">{{ "%.0f"|format(p.projected_points) }}</span>
+                        </div>
+                        <button onclick="document.getElementById('dropName').value = '{{ p.name|e }}'; document.getElementById('addPlayer').value = ''; document.getElementById('dropOnlyForm').submit();"
+                            class="opacity-0 group-hover:opacity-100 text-error font-label-caps text-[10px] hover:underline transition-all"
+                            title="Drop {{ p.name }}">
+                            DROP
+                        </button>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-on-surface-variant text-center py-md">No players on roster yet.</p>
+                    {% endfor %}
+                </div>
+                <!-- Roster Limits Summary -->
+                <div class="px-md py-sm bg-surface-container-high border-t border-outline-variant">
+                    <div class="flex gap-sm text-[10px] font-label-caps text-outline flex-wrap">
+                        {% for slot, count in league.roster_slots.items() if slot != 'BENCH' %}
+                        {% set filled = user_team.roster_count_by_position(slot) %}
+                        <span class="{% if filled >= count %}text-secondary{% else %}text-outline{% endif %}">
+                            {{ slot }}: {{ filled }}/{{ count }}
+                        </span>
+                        {% endfor %}
+                        <span class="text-outline">BENCH: {{ user_team.bench_count }}/{{ league.roster_slots.get('BENCH', 6) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Claims -->
+            {% if recent_claims %}
+            <div class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+                <div class="px-md py-md bg-surface-container-high border-b border-outline-variant">
+                    <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+                        <span class="material-symbols-outlined text-tertiary" data-icon="history">history</span>
+                        Recent Activity
+                    </h3>
+                </div>
+                <div class="p-md space-y-xs max-h-[300px] overflow-y-auto custom-scrollbar">
+                    {% for claim in recent_claims[:15] %}
+                    <div class="text-xs border-b border-outline-variant/30 pb-xs mb-xs last:border-0 last:mb-0 last:pb-0">
+                        <div class="flex items-center gap-sm">
+                            {% if claim.action == 'claim' %}
+                            <span class="material-symbols-outlined text-secondary text-[14px]" data-icon="add_circle">add_circle</span>
+                            {% else %}
+                            <span class="material-symbols-outlined text-error text-[14px]" data-icon="remove_circle">remove_circle</span>
+                            {% endif %}
+                            <div class="flex-1 min-w-0">
+                                <span class="font-bold text-on-surface">{{ claim.team_name }}</span>
+                                {% if claim.action == 'claim' %}
+                                <span class="text-on-surface-variant">added</span>
+                                <span class="text-secondary font-bold">{{ claim.add_player }}</span>
+                                {% if claim.drop_player %}
+                                <span class="text-on-surface-variant">dropped</span>
+                                <span class="text-error">{{ claim.drop_player }}</span>
+                                {% endif %}
+                                {% if claim.bid > 0 %}
+                                <span class="text-primary">${{ "%.0f"|format(claim.bid) }}</span>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-on-surface-variant">dropped</span>
+                                <span class="text-error font-bold">{{ claim.drop_player }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-outline mt-xs ml-lg">Week {{ claim.week }} · {{ claim.timestamp }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- FAAB Rankings -->
+            <div class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+                <div class="px-md py-md bg-surface-container-high border-b border-outline-variant">
+                    <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+                        <span class="material-symbols-outlined text-primary" data-icon="account_balance">account_balance</span>
+                        FAAB Remaining
+                    </h3>
+                </div>
+                <div class="p-md space-y-sm">
+                    {% for t in faab_rankings %}
+                    {% set is_user = t.number == league.user_team_number %}
+                    <div class="flex items-center gap-sm {% if is_user %}bg-primary/5 rounded px-sm py-xs{% endif %}">
+                        <span class="w-5 text-center font-data-numeral text-xs {% if is_user %}text-primary font-bold{% else %}text-on-surface-variant{% endif %}">{{ loop.index }}</span>
+                        <div class="flex-1 flex items-center gap-sm min-w-0">
+                            <span class="font-label-caps text-xs {% if is_user %}text-primary font-bold{% else %}text-on-surface{% endif %} truncate">{{ t.name }}</span>
+                            <div class="flex-1 h-1.5 bg-surface-variant rounded-full overflow-hidden max-w-[80px]">
+                                <div class="h-full bg-primary rounded-full" style="width: {{ t.faab_budget }}%"></div>
+                            </div>
+                        </div>
+                        <span class="font-data-numeral text-xs {% if t.faab_budget > 50 %}text-secondary{% else %}text-on-surface-variant{% endif %}">${{ "%.0f"|format(t.faab_budget) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Hidden Drop-Only Form -->
+<form id="dropOnlyForm" action="/waiver-wire/drop" method="POST" class="hidden">
+    <input type="hidden" name="drop_name" id="dropName" value=""/>
+</form>
+
+<!-- Claim Modal -->
+<div id="claimModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg max-w-md w-full mx-md fade-in">
+        <h3 class="font-headline-md text-headline-md text-on-surface mb-md flex items-center gap-sm">
+            <span class="material-symbols-outlined text-secondary" data-icon="add_circle">add_circle</span>
+            Claim Player
+        </h3>
+        <form action="/waiver-wire/add" method="POST" class="space-y-md">
+            <div class="bg-surface-container-low rounded-lg p-md border border-outline-variant">
+                <p class="font-label-caps text-[10px] text-outline mb-xs">ADDING</p>
+                <p class="font-headline-md text-headline-md text-on-surface" id="modalPlayerName">—</p>
+                <div class="flex gap-sm mt-xs">
+                    <span class="font-label-caps text-xs text-on-surface-variant" id="modalPlayerPos">—</span>
+                    <span class="font-label-caps text-xs text-on-surface-variant" id="modalPlayerTeam">—</span>
+                </div>
+            </div>
+
+            <input type="hidden" name="add_name" id="addNameInput" value=""/>
+
+            <div>
+                <label class="font-label-caps text-[10px] text-outline mb-xs block">Drop Player (optional — leave blank if you have roster space)</label>
+                <select name="drop_name" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-body-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option value="">— Don't drop anyone —</option>
+                    {% for p in user_team.roster %}
+                    <option value="{{ p.name }}">{{ p.position }} · {{ p.name }} ({{ "%.0f"|format(p.projected_points) }} proj)</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="font-label-caps text-[10px] text-outline mb-xs block">FAAB Bid ($)</label>
+                <div class="flex items-center gap-sm">
+                    <span class="text-on-surface font-bold text-lg">$</span>
+                    <input type="number" name="bid" min="0" max="{{ user_team.faab_budget }}" step="1" value="0"
+                        class="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-md py-sm text-body-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary font-data-numeral"/>
+                </div>
+                <p class="text-[10px] text-outline mt-xs">Available: ${{ "%.0f"|format(user_team.faab_budget) }}</p>
+            </div>
+
+            <div class="flex gap-md pt-sm">
+                <button type="submit" class="flex-1 bg-secondary text-on-secondary py-md rounded-lg font-bold text-sm hover:opacity-90 transition-all">
+                    Submit Claim
+                </button>
+                <button type="button" onclick="closeClaimModal()"
+                    class="flex-1 bg-surface-variant text-on-surface-variant py-md rounded-lg font-bold text-sm hover:bg-surface-container-high transition-all">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openClaimModal(name, pos, team) {
+        document.getElementById('modalPlayerName').textContent = name;
+        document.getElementById('modalPlayerPos').textContent = pos;
+        document.getElementById('modalPlayerTeam').textContent = team;
+        document.getElementById('addNameInput').value = name;
+        document.getElementById('claimModal').classList.remove('hidden');
+    }
+
+    function closeClaimModal() {
+        document.getElementById('claimModal').classList.add('hidden');
+    }
+
+    function filterFreeAgents(query) {
+        const q = query.toLowerCase();
+        document.querySelectorAll('.fa-row').forEach(row => {
+            const name = row.getAttribute('data-name') || '';
+            row.style.display = name.includes(q) ? '' : 'none';
+        });
+    }
+
+    // Close modal on escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeClaimModal();
+    });
+
+    // Close modal on click outside
+    document.getElementById('claimModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeClaimModal();
+    });
+</script>
+{% endblock %}

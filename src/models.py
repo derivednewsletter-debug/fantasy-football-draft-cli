@@ -111,6 +111,8 @@ class Team:
     roster: list[Player] = field(default_factory=list)
     roster_slots: dict[str, int] = field(default_factory=lambda: dict(ROSTER_PRESETS["PPR"]))
     waiver_moves: int = 0
+    faab_budget: float = 100.0
+    waiver_priority: int = 999
 
     def __post_init__(self):
         if not self.name:
@@ -179,6 +181,8 @@ class Team:
             "roster": [p.to_dict() for p in self.roster],
             "roster_slots": dict(self.roster_slots),
             "waiver_moves": self.waiver_moves,
+            "faab_budget": self.faab_budget,
+            "waiver_priority": self.waiver_priority,
         }
 
     @classmethod
@@ -186,6 +190,8 @@ class Team:
         team = cls(number=data["number"], name=data.get("name", ""), roster_slots=data.get("roster_slots", {}))
         team.roster = [Player.from_dict(p) for p in data.get("roster", [])]
         team.waiver_moves = data.get("waiver_moves", 0)
+        team.faab_budget = data.get("faab_budget", 100.0)
+        team.waiver_priority = data.get("waiver_priority", 999)
         return team
 
 
@@ -214,6 +220,7 @@ class League:
     week_opponent: Optional[int] = None  # opponent team number for current week
     matchup_results: dict[str, dict] = field(default_factory=dict)
     # matchup_results format: {week_str: {team_num: {"pf": float, "pa": float, "result": "W"|"L"|"T"}}}
+    waiver_log: list[dict] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.teams:
@@ -341,6 +348,7 @@ class League:
             "current_week": self.current_week,
             "week_opponent": self.week_opponent,
             "matchup_results": self.matchup_results,
+            "waiver_log": self.waiver_log,
         }
 
     @classmethod
@@ -364,4 +372,5 @@ class League:
         league.current_week = data.get("current_week", 1)
         league.week_opponent = data.get("week_opponent")
         league.matchup_results = data.get("matchup_results", {})
+        league.waiver_log = data.get("waiver_log", [])
         return league

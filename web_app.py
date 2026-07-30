@@ -950,6 +950,216 @@ def weekly_chart():
 
 
 # ---------------------------------------------------------------------------
+# Waiver Wire
+# ---------------------------------------------------------------------------
+
+DEFAULT_FAAB = 100.0
+
+
+def _init_waiver_priorities(league: League):
+    """Initialize waiver priorities for all teams if not set (reverse draft order)."""
+    for t in league.teams:
+        if t.waiver_priority == 999:
+            # Default: reverse of team number (Team 1 gets last priority)
+            t.waiver_priority = league.num_teams - t.number + 1
+        if t.faab_budget == 100.0:
+            t.faab_budget = DEFAULT_FAAB
+
+
+def _get_available_free_agents(league: League) -> list[Player]:
+    """Get all undrafted players not currently on any roster."""
+    rostered_names = set()
+    for t in league.teams:
+        for p in t.roster:
+            rostered_names.add(p.name)
+    free_agents = []
+    for p in league.players_pool:
+        if p.name not in rostered_names:
+            # Reset draft flags so they appear available
+            free_agents.append(p)
+    return free_agents
+
+
+@app.route("/waiver-wire")
+@login_required
+def waiver_wire():
+    """Waiver wire page — view available free agents and manage roster."""
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    _init_waiver_priorities(league)
+    user_team = league.user_team
+    free_agents = _get_available_free_agents(league)
+
+    # Sort: by projected_points descending
+    free_agents.sort(key=lambda p: -p.projected_points)
+
+    # Recent waiver activity
+    recent_claims = list(reversed(league.waiver_log[-20:])) if league.waiver_log else []
+
+    # Build top FAAB remaining list
+    faab_rankings = sorted(league.teams, key=lambda t: -t.faab_budget)
+
+    # Fill roster status
+    roster_filled = sum(league.roster_slots.get(k, 0) for k in ("QB", "RB", "WR", "TE", "FLEX", "K", "DST"))
+    total_slots = sum(league.roster_slots.values())
+
+    return render_template(
+        "waiver_wire.html",
+        league=league,
+        user_team=user_team,
+        free_agents=free_agents,
+        recent_claims=recent_claims,
+        faab_rankings=faab_rankings,
+        roster_filled=roster_filled,
+        total_slots=total_slots,
+        active_page="waiver_wire",
+        user=_get_user_context(),
+    )
+
+
+@app.route("/waiver-wire/add", methods=["POST"])
+@login_required
+def waiver_add():
+    """Add a free agent to the user's roster (may require dropping a player)."""
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    add_name = request.form.get("add_name", "").strip()
+    drop_name = request.form.get("drop_name", "").strip()
+    bid = float(request.form.get("bid", 0))
+
+    if not add_name:
+        flash("Enter a player name to add.", "error")
+        return redirect(url_for("waiver_wire"))
+
+    _init_waiver_priorities(league)
+    user_team = league.user_team
+    free_agents = _get_available_free_agents(league)
+
+    # Find the player to add
+    from thefuzz import process as fuzz_process
+    fa_names = [p.name for p in free_agents]
+    match, score = fuzz_process.extractOne(add_name, fa_names, score_cutoff=60)
+    if not match:
+        flash(f"Could not find '{add_name}' among free agents.", "error")
+        return redirect(url_for("waiver_wire"))
+
+    add_player = next(p for p in free_agents if p.name == match)
+
+    # Check FAAB budget
+    if bid > user_team.faab_budget:
+        flash(f"Insufficient FAAB budget. You have ${user_team.faab_budget:.0f}, bid ${bid:.0f}.", "error")
+        return redirect(url_for("waiver_wire"))
+
+    # Handle drop if needed
+    if drop_name:
+        drop_names = [p.name for p in user_team.roster]
+        drop_match, drop_score = fuzz_process.extractOne(drop_name, drop_names, score_cutoff=60)
+        if not drop_match:
+            flash(f"Could not find '{drop_name}' on your roster.", "error")
+            return redirect(url_for("waiver_wire"))
+
+        # Remove dropped player from roster
+        user_team.roster = [p for p in user_team.roster if p.name != drop_match]
+        # Also mark as undrafted in pool if it was a pool player
+        pool_player = next((p for p in league.players_pool if p.name == drop_match), None)
+        if pool_player:
+            pool_player.is_drafted = False
+            pool_player.drafted_by = None
+
+    # Check roster space (if not dropping)
+    roster_total = sum(league.roster_slots.values())
+    if not drop_name and len(user_team.roster) >= roster_total:
+        flash("Roster is full. Drop a player first or add with a drop.", "error")
+        return redirect(url_for("waiver_wire"))
+
+    # Add the player
+    add_player.is_drafted = True
+    add_player.drafted_by = user_team.number
+    user_team.roster.append(add_player)
+    user_team.waiver_moves += 1
+    user_team.faab_budget -= bid
+
+    # Log the transaction
+    import datetime
+    league.waiver_log.append({
+        "week": league.current_week,
+        "team_num": user_team.number,
+        "team_name": user_team.name,
+        "action": "claim",
+        "add_player": add_player.name,
+        "add_position": add_player.position,
+        "drop_player": drop_name if drop_name else None,
+        "bid": bid,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+    })
+
+    save_league(league)
+
+    msg_parts = [f"✓ Added {add_player.name} ({add_player.position})"]
+    if bid > 0:
+        msg_parts.append(f"for ${bid:.0f}")
+    if drop_name:
+        msg_parts.append(f"dropped {drop_match}")
+    flash(" ".join(msg_parts), "success")
+    return redirect(url_for("waiver_wire"))
+
+
+@app.route("/waiver-wire/drop", methods=["POST"])
+@login_required
+def waiver_drop():
+    """Drop a player from the user's roster to free up space."""
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    drop_name = request.form.get("drop_name", "").strip()
+    if not drop_name:
+        flash("Enter a player name to drop.", "error")
+        return redirect(url_for("waiver_wire"))
+
+    from thefuzz import process as fuzz_process
+    user_team = league.user_team
+    drop_names = [p.name for p in user_team.roster]
+    match, score = fuzz_process.extractOne(drop_name, drop_names, score_cutoff=60)
+
+    if not match:
+        flash(f"Could not find '{drop_name}' on your roster.", "error")
+        return redirect(url_for("waiver_wire"))
+
+    player = next((p for p in user_team.roster if p.name == match), None)
+    if player:
+        user_team.roster = [p for p in user_team.roster if p.name != match]
+        pool_player = next((p for p in league.players_pool if p.name == match), None)
+        if pool_player:
+            pool_player.is_drafted = False
+            pool_player.drafted_by = None
+
+        user_team.waiver_moves += 1
+
+        import datetime
+        league.waiver_log.append({
+            "week": league.current_week,
+            "team_num": user_team.number,
+            "team_name": user_team.name,
+            "action": "drop",
+            "add_player": None,
+            "add_position": None,
+            "drop_player": match,
+            "bid": 0,
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        })
+
+        save_league(league)
+        flash(f"✗ Dropped {match} ({player.position}). Roster spot freed.", "success")
+
+    return redirect(url_for("waiver_wire"))
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
