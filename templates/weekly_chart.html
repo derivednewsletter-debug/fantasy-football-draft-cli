@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+{% block title %}Weekly Points Chart{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartData = {{ chart_data_json|safe }};
+    const allTeams = {{ teams_json|safe }};
+    const leagueAvg = {{ league_avg_json|safe }};
+
+    // Team toggle state — start with user team + first 3 others selected
+    let selectedTeams = new Set();
+    const userTeamNum = {{ league.user_team_number }};
+    selectedTeams.add(userTeamNum);
+    let count = 0;
+    for (const t of allTeams) {
+        if (t.team_num !== userTeamNum && count < 3) {
+            selectedTeams.add(t.team_num);
+            count++;
+        }
+    }
+
+    let chart;
+
+    function buildColors(count, baseColor) {
+        // Generate gradient-like palette
+        const colors = [];
+        const base = parseInt(baseColor.replace('#', ''), 16);
+        for (let i = 0; i < count; i++) {
+            const shift = (i * 40) % 360;
+            colors.push(`hsl(${shift + 160}, 70%, ${55 + (i % 3) * 8}%)`);
+        }
+        return colors;
+    }
+
+    function renderChart() {
+        const teamKeys = allTeams
+            .filter(t => selectedTeams.has(t.team_num))
+            .map(t => t.team_num);
+
+        if (teamKeys.length === 0) {
+            document.getElementById('chartContainer').innerHTML =
+                '<div class="text-center py-lg text-on-surface-variant">Select at least one team.</div>';
+            return;
+        }
+
+        const datasets = [];
+        const colorMap = {};
+
+        allTeams.forEach(t => {
+            if (!selectedTeams.has(t.team_num)) return;
+            const isUser = t.team_num === userTeamNum;
+            const color = t.color || '#68dba9';
+            colorMap[t.team_num] = color;
+
+            datasets.push({
+                label: t.name,
+                data: t.data,
+                backgroundColor: color + '70',
+                borderColor: color,
+                borderWidth: isUser ? 3 : 1.5,
+                borderRadius: 4,
+                borderSkipped: false,
+                pointRadius: isUser ? 5 : 3,
+                pointHoverRadius: 8,
+                pointBackgroundColor: color,
+                tension: 0.3,
+                fill: false,
+            });
+        });
+
+        // League average line
+        if (leagueAvg && leagueAvg.length > 0 && teamKeys.length > 0) {
+            datasets.push({
+                label: 'League Avg',
+                data: leagueAvg,
+                borderColor: '#87948b',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                borderDash: [6, 3],
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                fill: false,
+            });
+        }
+
+        const ctx = document.getElementById('weeklyChart').getContext('2d');
+
+        if (chart) chart.destroy();
+
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.labels || [],
+                datasets: datasets,
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    tooltip: {
+                        backgroundColor: '#171f33',
+                        titleColor: '#dae2fd',
+                        bodyColor: '#bccac0',
+                        borderColor: '#3d4a42',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 8,
+                        callbacks: {
+                            afterBody: function(items) {
+                                const raw = items[0].raw;
+                                if (raw === null || raw === undefined) return '';
+                                const wkLabel = items[0].label || '';
+                                // Find opponent and result
+                                const point = chartData.all_points?.find(p =>
+                                    p.team_num === parseInt(items[0].dataset.label) &&
+                                    'Wk ' + p.week === wkLabel
+                                );
+                                if (point) {
+                                    const lines = [];
+                                    if (point.pa) lines.push(`vs ${point.pa.toFixed(1)} PA`);
+                                    if (point.result) lines.push(`Result: ${point.result}`);
+                                    return lines.join(' · ');
+                                }
+                                return '';
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: '#2d344940',
+                            drawBorder: false,
+                        },
+                        ticks: {
+                            color: '#87948b',
+                            font: { size: 11, family: 'JetBrains Mono' },
+                            callback: function(val) { return val.toFixed(0); },
+                        },
+                    },
+                    x: {
+                        grid: {
+                            display: false,
+                        },
+                        ticks: {
+                            color: '#87948b',
+                            font: { size: 10, family: 'Inter' },
+                            maxRotation: 45,
+                        },
+                    },
+                },
+                animations: {
+                    tension: { duration: 1000, easing: 'easeOutQuad' },
+                },
+            },
+        });
+    }
+
+    // Build team selector pills
+    const filterContainer = document.getElementById('teamFilters');
+    allTeams.forEach(t => {
+        const isUser = t.team_num === userTeamNum;
+        const btn = document.createElement('button');
+        const isSelected = selectedTeams.has(t.team_num);
+        btn.className = `px-md py-xs rounded-full font-label-caps text-label-caps transition-all border
+            ${isSelected
+                ? 'bg-' + (isUser ? 'secondary' : 'surface-container-high') + ' text-' + (isUser ? 'on-secondary' : 'on-surface') + ' border-' + (isUser ? 'secondary' : 'primary-fixed-dim')
+                : 'bg-transparent text-on-surface-variant border-outline-variant hover:border-primary'}`;
+        if (isSelected) {
+            btn.style.borderColor = t.color || (isUser ? '#4edea3' : '#68dba9');
+            btn.style.backgroundColor = (t.color || (isUser ? '#4edea3' : '#68dba9')) + '25';
+            btn.style.color = t.color || (isUser ? '#4edea3' : '#68dba9');
+        }
+        btn.textContent = t.short_name || t.name;
+        btn.onclick = () => {
+            if (selectedTeams.has(t.team_num)) {
+                if (selectedTeams.size <= 1) return; // keep at least 1
+                selectedTeams.delete(t.team_num);
+            } else {
+                selectedTeams.add(t.team_num);
+            }
+            renderChart();
+            // Update button styles
+            filterContainer.querySelectorAll('button').forEach(b => {
+                const tn = parseInt(b.getAttribute('data-team'));
+                const sel = selectedTeams.has(tn);
+                const col = b.getAttribute('data-color') || '#68dba9';
+                if (sel) {
+                    b.className = `px-md py-xs rounded-full font-label-caps text-label-caps transition-all border`;
+                    b.style.borderColor = col;
+                    b.style.backgroundColor = col + '25';
+                    b.style.color = col;
+                } else {
+                    b.className = `px-md py-xs rounded-full font-label-caps text-label-caps transition-all border bg-transparent text-on-surface-variant border-outline-variant hover:border-primary`;
+                    b.style.borderColor = '';
+                    b.style.backgroundColor = '';
+                    b.style.color = '';
+                }
+            });
+        };
+        btn.setAttribute('data-team', t.team_num);
+        btn.setAttribute('data-color', t.color || '#68dba9');
+        filterContainer.appendChild(btn);
+    });
+
+    renderChart();
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="p-lg space-y-lg max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-md">
+        <div>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface flex items-center gap-sm">
+                <span class="material-symbols-outlined text-primary" data-icon="bar_chart">bar_chart</span>
+                Weekly Points Chart
+            </h2>
+            <p class="font-body-sm text-on-surface-variant">
+                Each team's fantasy points scored, week by week
+                {% if chart_data.week_count > 0 %}· {{ chart_data.week_count }} weeks tracked{% endif %}
+            </p>
+        </div>
+        <div class="flex items-center gap-sm">
+            <span class="bg-surface-container-high px-md py-sm rounded-lg border border-outline-variant font-label-caps text-[10px] text-outline flex items-center gap-xs">
+                <span class="w-2 h-2 rounded-full bg-secondary"></span>
+                <span>Your team highlighted</span>
+            </span>
+            <span class="bg-surface-container-high px-md py-sm rounded-lg border border-outline-variant font-label-caps text-[10px] text-outline flex items-center gap-xs">
+                <span class="w-4 h-0 border-t-2 border-dashed border-outline"></span>
+                <span>League average</span>
+            </span>
+        </div>
+    </div>
+
+    {% if chart_data.week_count > 0 %}
+
+    <!-- Team Filters -->
+    <div id="teamFilters" class="flex flex-wrap gap-sm">
+        <!-- Populated by JS -->
+    </div>
+
+    <!-- Chart Card -->
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+        <div class="flex items-center justify-between mb-md">
+            <h3 class="font-headline-md text-headline-md text-on-surface">Points For by Week</h3>
+            <div class="flex gap-sm">
+                <button onclick="window.location.reload()" class="text-on-surface-variant hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined" data-icon="refresh">refresh</span>
+                </button>
+            </div>
+        </div>
+        <div id="chartContainer" style="height: 420px;">
+            <canvas id="weeklyChart"></canvas>
+        </div>
+
+        <!-- Chart Legend (JS simulated) -->
+        <div id="chartLegend" class="flex flex-wrap gap-lg mt-md pt-md border-t border-outline-variant">
+            <!-- populated by JS if needed -->
+        </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-lg">
+        {% set s = chart_data.stats %}
+        <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+            <h4 class="font-label-caps text-[10px] text-outline mb-xs">HIGHEST WEEK</h4>
+            {% if s and s.highest_week %}
+            {% set hw_team = league.teams[s.highest_week.team_num - 1] %}
+            <p class="font-headline-md text-headline-md text-secondary">{{ "%.1f"|format(s.highest_week.pf) }}</p>
+            <p class="text-xs text-on-surface-variant">{{ hw_team.name }} · Week {{ s.highest_week.week }}</p>
+            {% else %}
+            <p class="text-on-surface-variant text-sm">—</p>
+            {% endif %}
+        </div>
+        <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+            <h4 class="font-label-caps text-[10px] text-outline mb-xs">LEAGUE PPG</h4>
+            <p class="font-headline-md text-headline-md text-primary">{{ "%.1f"|format(s.league_ppg) if s and s.league_ppg else '—' }}</p>
+            <p class="text-xs text-on-surface-variant">Across {{ chart_data.week_count }} weeks</p>
+        </div>
+        <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+            <h4 class="font-label-caps text-[10px] text-outline mb-xs">BIGGEST BLOWOUT</h4>
+            {% if s and s.biggest_blowout %}
+            {% set bb = s.biggest_blowout %}
+            <p class="font-headline-md text-headline-md text-tertiary">{{ "%+.1f"|format(bb.diff) }}</p>
+            <p class="text-xs text-on-surface-variant">Week {{ bb.week }} · {{ "%.1f"|format(bb.pf) }}-{{ "%.1f"|format(bb.pa) }}</p>
+            {% else %}
+            <p class="text-on-surface-variant text-sm">—</p>
+            {% endif %}
+        </div>
+        <div class="bg-surface-container rounded-xl border border-outline-variant p-lg">
+            <h4 class="font-label-caps text-[10px] text-outline mb-xs">MOST CONSISTENT</h4>
+            {% if s and s.most_consistent %}
+            <p class="font-headline-md text-headline-md text-on-surface">{{ s.most_consistent.name }}</p>
+            <p class="text-xs text-on-surface-variant">Std Dev: {{ "%.1f"|format(s.most_consistent.std) }}</p>
+            {% else %}
+            <p class="text-on-surface-variant text-sm">—</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Weekly Data Table -->
+    <details class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+        <summary class="px-lg py-md bg-surface-container-high font-headline-md text-headline-md text-on-surface cursor-pointer hover:bg-surface-container-higher transition-colors flex items-center gap-sm">
+            <span class="material-symbols-outlined text-outline" data-icon="expand_more">expand_more</span>
+            Raw Scores by Week
+        </summary>
+        <div class="p-lg overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="border-b border-outline-variant">
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline">TEAM</th>
+                        {% for label in chart_data.labels %}
+                        <th class="px-md py-sm font-label-caps text-[10px] text-outline text-center">{{ label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/30">
+                    {% for ds in chart_data.datasets %}
+                    {% set is_user = ds.team_num == league.user_team_number %}
+                    <tr class="{% if is_user %}bg-primary/5{% else %}hover:bg-surface-variant{% endif %} transition-colors">
+                        <td class="px-md py-sm font-bold {% if is_user %}text-secondary{% else %}text-on-surface{% endif %}">
+                            {{ ds.name }}
+                        </td>
+                        {% for val in ds.data %}
+                        <td class="px-md py-sm text-center font-data-numeral {% if is_user %}text-primary{% else %}text-on-surface-variant{% endif %}">
+                            {{ "%.1f"|format(val) }}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    <!-- League Average Row -->
+                    <tr class="bg-surface-container-high">
+                        <td class="px-md py-sm font-bold text-outline">League Avg</td>
+                        {% for avg in chart_data.week_avgs %}
+                        <td class="px-md py-sm text-center font-data-numeral text-outline">{{ "%.1f"|format(avg) }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    {% else %}
+
+    <!-- Empty State -->
+    <div class="bg-surface-container rounded-xl border border-outline-variant p-lg text-center">
+        <span class="material-symbols-outlined text-5xl text-outline block mb-md" data-icon="bar_chart">bar_chart</span>
+        <h3 class="font-headline-md text-headline-md text-on-surface mb-sm">No Weekly Data Yet</h3>
+        <p class="text-sm text-on-surface-variant max-w-md mx-auto">
+            Finalize some matchups on the
+            <a href="/gameday" class="text-primary hover:underline">Game Day</a>
+            page to see weekly points charted here.
+        </p>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from functools import wraps
@@ -790,6 +791,160 @@ def playoff_simulator():
         sim_data=sim_data,
         auto_sim_running=auto_sim_running,
         active_page="playoff_sim",
+        user=_get_user_context(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Weekly Points Chart
+# ---------------------------------------------------------------------------
+
+def compute_weekly_chart_data(league: League) -> dict:
+    """
+    Extract weekly points-for from matchup_results and build chart-ready data.
+    Returns {labels: ["Wk 1", ...], team_datasets: [{team_num, name, data: [score, ...], color}],
+            week_count, all_weeks: [{week_str, team_num, pf}, ...]}
+    """
+    results = league.matchup_results or {}
+
+    # Collect all weeks sorted numerically
+    week_keys = sorted(results.keys(), key=lambda w: int(w.split("_")[0]) if "_" in w else int(w))
+
+    # Build per-team weekly scores
+    team_scores: dict[int, dict] = {}
+    for t in league.teams:
+        team_scores[t.number] = {
+            "team_num": t.number,
+            "name": t.name,
+            "data": [],
+        }
+
+    # For each week, record each team's PF (0 if not recorded that week)
+    for wk in week_keys:
+        week_data = results[wk]
+        for tn_str, m in week_data.items():
+            tn = int(tn_str)
+            if tn in team_scores:
+                team_scores[tn]["data"].append(m.get("pf", 0))
+
+    # Build labels
+    labels = []
+    for i, wk in enumerate(week_keys):
+        clean = wk.replace("_", " ").replace("manual ", "").replace("sim ", "")
+        labels.append(f"Wk {clean}")
+
+    # Assign colors
+    team_colors = [
+        "#68dba9", "#4edea3", "#25a475", "#00a572", "#45dfa4",
+        "#85f8c4", "#6ffbbe", "#68fcbf", "#00a574", "#4edea3",
+        "#68dba9", "#45dfa4",
+    ]
+
+    datasets = []
+    for t in league.teams:
+        td = team_scores[t.number]
+        datasets.append({
+            "team_num": t.number,
+            "name": td["name"],
+            "data": td["data"],
+            "color": team_colors[(t.number - 1) % len(team_colors)],
+        })
+
+    # All individual data points
+    all_points = []
+    for wk in week_keys:
+        week_data = results[wk]
+        for tn_str, m in week_data.items():
+            all_points.append({
+                "week": wk,
+                "team_num": int(tn_str),
+                "pf": m.get("pf", 0),
+                "pa": m.get("pa", 0),
+                "result": m.get("result", ""),
+            })
+
+    # League averages per week
+    week_avgs = []
+    for wk in week_keys:
+        week_data = results[wk]
+        scores = [m.get("pf", 0) for m in week_data.values()]
+        avg = round(sum(scores) / len(scores), 1) if scores else 0
+        week_avgs.append(avg)
+
+    # Stats computed in Python (avoids complex Jinja2 math)
+    # Highest single week
+    highest_week = max(all_points, key=lambda x: x.get("pf", 0)) if all_points else None
+
+    # Biggest blowout (largest PF - PA margin)
+    biggest_blowout = max(all_points, key=lambda x: x.get("pf", 0) - x.get("pa", 0)) if all_points else None
+    if biggest_blowout:
+        biggest_blowout["diff"] = round(biggest_blowout["pf"] - biggest_blowout["pa"], 1)
+
+    # Most consistent (lowest std dev of weekly scores for teams with 2+ weeks)
+    most_consistent = None
+    lowest_std = float("inf")
+    for ds in datasets:
+        if len(ds["data"]) >= 2:
+            n = len(ds["data"])
+            mean = sum(ds["data"]) / n
+            variance = sum((x - mean) ** 2 for x in ds["data"]) / n
+            std = variance ** 0.5
+            if std < lowest_std:
+                lowest_std = std
+                most_consistent = {"name": ds["name"], "std": round(std, 1)}
+
+    # League-wide average PPG
+    all_scores = [m.get("pf", 0) for week_data in results.values() for m in week_data.values()]
+    league_ppg = round(sum(all_scores) / len(all_scores), 1) if all_scores else 0
+
+    return {
+        "labels": labels,
+        "datasets": datasets,
+        "week_count": len(week_keys),
+        "all_points": all_points,
+        "week_avgs": week_avgs,
+        "team_colors": team_colors,
+        "stats": {
+            "highest_week": highest_week,
+            "biggest_blowout": biggest_blowout,
+            "most_consistent": most_consistent,
+            "league_ppg": league_ppg,
+        },
+    }
+
+
+@app.route("/weekly-chart")
+@login_required
+def weekly_chart():
+    """Weekly Points Chart page — bar chart of each team's scores week-by-week."""
+    league = _ensure_league()
+    if not league:
+        return redirect(url_for("leagues"))
+
+    chart_data = compute_weekly_chart_data(league)
+
+    # Build serializable versions for JS
+    teams_json = []
+    for ds in chart_data["datasets"]:
+        teams_json.append({
+            "team_num": ds["team_num"],
+            "name": ds["name"],
+            "short_name": ds["name"].split(" ")[-1] if " " in ds["name"] else ds["name"],
+            "data": ds["data"],
+            "color": ds["color"],
+        })
+
+    return render_template(
+        "weekly_chart.html",
+        league=league,
+        chart_data=chart_data,
+        chart_data_json=json.dumps({
+            "labels": chart_data["labels"],
+            "all_points": chart_data["all_points"],
+        }),
+        teams_json=json.dumps(teams_json),
+        league_avg_json=json.dumps(chart_data["week_avgs"]),
+        active_page="weekly_chart",
         user=_get_user_context(),
     )
 
