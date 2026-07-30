@@ -1,0 +1,15 @@
+# Environment variables with API keys
+.env
+
+# League data (persistent draft states)
+leagues/*
+!leagues/.gitkeep
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# OS junk
+.DS_Store
