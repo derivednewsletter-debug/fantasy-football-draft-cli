@@ -11,10 +11,5 @@
       "src": "/(.*)",
       "dest": "api/index.py"
     }
-  ],
-  "env": {
-    "VERCEL_ENV": "1",
-    "LEAGUES_DIR": "/tmp/leagues",
-    "USERS_DIR": "/tmp/users"
-  }
+  ]
 }

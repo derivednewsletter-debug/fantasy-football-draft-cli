@@ -2,6 +2,11 @@
 
 This module is the Vercel Python serverless function handler.
 Vercel imports `app` from this module and uses it as a WSGI application.
+
+Production database:
+  Set DATABASE_URL to a Postgres connection string (e.g. from Neon) in the
+  Vercel project's Environment Variables.  Without it the app falls back to
+  a local SQLite file at data/app.db (which is ephemeral on Vercel).
 """
 
 import json
@@ -15,11 +20,11 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 # ---------------------------------------------------------------------------
-# Initialise the database on every cold start
+# Initialize the database on every cold start
 #
-# SQLite users: the file is created automatically at data/app.db.
-# Postgres users: set DATABASE_URL in your Vercel environment variables.
-# Tables are created if they don't exist — safe to call on every boot.
+# SQLite (local dev):  file created at data/app.db
+# Postgres (Vercel):   set DATABASE_URL in Vercel env vars
+# Tables are CREATE IF NOT EXISTS — safe to call on every boot.
 # ---------------------------------------------------------------------------
 from src.database import init_db, db_create_user, db_get_user_by_email
 
@@ -29,9 +34,10 @@ init_db()
 # ---------------------------------------------------------------------------
 # Seed pre-existing user accounts into the database (idempotent)
 #
-# Two sources:
-#   1. data/seed_users/ — committed to git, ships with Vercel deployment
-#   2. users/ — local only (gitignored), won't exist on Vercel
+# Once a user exists in the database, subsequent cold starts skip them.
+# Sources:
+#   1. data/seed_users/  — committed to git, ships with every deployment
+#   2. users/            — local only (gitignored), won't exist on Vercel
 # ---------------------------------------------------------------------------
 def _seed_users_from(source_dir: Path) -> None:
     """Copy user accounts from a directory into the database."""
