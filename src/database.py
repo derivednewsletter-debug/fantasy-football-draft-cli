@@ -4,7 +4,7 @@ Unified database backend for the Fantasy Football Draft Commander.
 - **SQLite** (local dev) — uses built-in ``sqlite3``, stored at ``data/app.db``
 - **PostgreSQL** (Vercel / production) — uses ``psycopg2`` when ``DATABASE_URL`` is set
 
-Both backends share the same schema and identical parameterized SQL, so the
+Both backends share the same schema and identical parameterized SQL so
 application code never has to think about which one is active.
 """
 
@@ -21,8 +21,24 @@ from typing import Any, Optional
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Use DATABASE_URL for Postgres; fall back to local SQLite file
-DATABASE_URL: str | None = os.environ.get("DATABASE_URL")
+# Prefer the explicit DATABASE_URL env var; fall back to building one from
+# individual PG* env vars (set automatically by Vercel's Neon integration).
+_RAW_DATABASE_URL: str | None = os.environ.get("DATABASE_URL")
+
+
+def _build_database_url() -> str | None:
+    """Construct a Postgres connection string from individual PG* env vars."""
+    pg_host = os.environ.get("PGHOST") or os.environ.get("POSTGRES_HOST")
+    pg_port = os.environ.get("PGPORT") or os.environ.get("POSTGRES_PORT", "5432")
+    pg_user = os.environ.get("PGUSER") or os.environ.get("POSTGRES_USER")
+    pg_pass = os.environ.get("PGPASSWORD") or os.environ.get("POSTGRES_PASSWORD")
+    pg_db = os.environ.get("PGDATABASE") or os.environ.get("POSTGRES_DATABASE")
+    if pg_host and pg_user and pg_pass and pg_db:
+        return f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}?sslmode=require"
+    return None
+
+
+DATABASE_URL: str | None = _RAW_DATABASE_URL or _build_database_url()
 
 # SQLite fallback path (relative to this file's parent)
 SQLITE_PATH = str(Path(__file__).resolve().parent.parent / "data" / "app.db")
@@ -39,15 +55,27 @@ def _is_postgres() -> bool:
 def _get_conn() -> sqlite3.Connection | Any:
     """Return a raw DB-API 2.0 connection.
 
-    SQLite connections have ``row_factory`` set to ``sqlite3.Row`` so that
-    ``cursor.fetch*()`` returns dict-like rows.
+    - Postgres: uses ``psycopg2`` with ``RealDictCursor`` so that
+      ``row["column_name"]`` works everywhere.
+    - SQLite: uses the built-in ``sqlite3`` module with ``Row`` factory.
     """
     if _is_postgres():
         import psycopg2
         from psycopg2.extras import RealDictCursor
-        conn = psycopg2.connect(DATABASE_URL)
+
+        # Vercel's Neon integration includes ?sslmode=require in the URL.
+        # Stripping it first avoids any double-parameter parsing edge cases
+        # in psycopg2, then we apply it explicitly via keyword arg.
+        clean_url = DATABASE_URL
+        if "?sslmode=" in clean_url:
+            clean_url = clean_url.split("?")[0]
+
+        conn = psycopg2.connect(
+            clean_url,
+            sslmode="require",
+            connect_timeout=10,
+        )
         conn.autocommit = False
-        # Use RealDictCursor so row["column_name"] works everywhere
         conn.cursor_factory = RealDictCursor
         return conn
     else:
@@ -90,10 +118,8 @@ def init_db() -> None:
     conn = _get_conn()
     try:
         if _is_postgres():
-            # Postgres-compatible DDL (no AUTOINCREMENT, use SERIAL)
-            import psycopg2
+            # Postgres-compatible DDL (SERIAL instead of AUTOINCREMENT)
             with conn.cursor() as cur:
-                # Check if pgcrypto extension exists (for gen_random_uuid if needed)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS users (
                         id          SERIAL PRIMARY KEY,
@@ -150,12 +176,15 @@ def db_create_user(email: str, password_hash: str) -> int:
 
 
 def db_get_user_by_email(email: str) -> Optional[dict]:
-    """Return {id, email, password_hash, created_at} or None."""
+    """Return ``{id, email, password_hash, created_at}`` or ``None``."""
     conn = _get_conn()
     try:
         cur = conn.cursor()
-        sql = "SELECT id, email, password_hash, created_at FROM users WHERE email = ?" if not _is_postgres() \
-              else "SELECT id, email, password_hash, created_at FROM users WHERE email = %s"
+        sql = (
+            "SELECT id, email, password_hash, created_at FROM users WHERE email = ?"
+            if not _is_postgres()
+            else "SELECT id, email, password_hash, created_at FROM users WHERE email = %s"
+        )
         cur.execute(sql, (email,))
         row = cur.fetchone()
         if row is None:
@@ -211,12 +240,15 @@ def db_save_league(user_id: int, league_name: str, league_dict: dict) -> None:
 
 
 def db_load_league(user_id: int, league_name: str) -> Optional[dict]:
-    """Load a league dict for a user by name. Returns None if not found."""
+    """Load a league dict for a user by name. Returns ``None`` if not found."""
     conn = _get_conn()
     try:
         cur = conn.cursor()
-        sql = "SELECT data FROM leagues WHERE user_id = ? AND name = ?" if not _is_postgres() \
-              else "SELECT data FROM leagues WHERE user_id = %s AND name = %s"
+        sql = (
+            "SELECT data FROM leagues WHERE user_id = ? AND name = ?"
+            if not _is_postgres()
+            else "SELECT data FROM leagues WHERE user_id = %s AND name = %s"
+        )
         cur.execute(sql, (user_id, league_name))
         row = cur.fetchone()
         if row is None:
@@ -231,8 +263,11 @@ def db_list_leagues(user_id: int) -> list[dict]:
     conn = _get_conn()
     try:
         cur = conn.cursor()
-        sql = "SELECT name, data, created_at, updated_at FROM leagues WHERE user_id = ? ORDER BY updated_at DESC" if not _is_postgres() \
-              else "SELECT name, data, created_at, updated_at FROM leagues WHERE user_id = %s ORDER BY updated_at DESC"
+        sql = (
+            "SELECT name, data, created_at, updated_at FROM leagues WHERE user_id = ? ORDER BY updated_at DESC"
+            if not _is_postgres()
+            else "SELECT name, data, created_at, updated_at FROM leagues WHERE user_id = %s ORDER BY updated_at DESC"
+        )
         cur.execute(sql, (user_id,))
         rows = cur.fetchall()
         results = []
@@ -255,12 +290,15 @@ def db_list_leagues(user_id: int) -> list[dict]:
 
 
 def db_delete_league(user_id: int, league_name: str) -> bool:
-    """Delete a league. Returns True if a row was deleted."""
+    """Delete a league. Returns ``True`` if a row was deleted."""
     conn = _get_conn()
     try:
         cur = conn.cursor()
-        sql = "DELETE FROM leagues WHERE user_id = ? AND name = ?" if not _is_postgres() \
-              else "DELETE FROM leagues WHERE user_id = %s AND name = %s"
+        sql = (
+            "DELETE FROM leagues WHERE user_id = ? AND name = ?"
+            if not _is_postgres()
+            else "DELETE FROM leagues WHERE user_id = %s AND name = %s"
+        )
         cur.execute(sql, (user_id, league_name))
         conn.commit()
         return cur.rowcount > 0

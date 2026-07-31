@@ -188,11 +188,11 @@ if __name__ == "__main__":
     print("=" * 55)
 
     # Initialise the database backend
-    from src.database import init_db, db_create_user
+    from src.database import init_db, db_create_user, db_user_exists
     init_db()
     # Create a test user so save_league() / load_league() have a session
-    if not db_create_user("test@draft.com", ""):
-        pass  # user already exists
+    if not db_user_exists("test@draft.com"):
+        db_create_user("test@draft.com", "")
     from src.auth import set_current_user
     set_current_user("test@draft.com")
 

@@ -26,9 +26,22 @@ if _project_root not in sys.path:
 # Postgres (Vercel):   set DATABASE_URL in Vercel env vars
 # Tables are CREATE IF NOT EXISTS — safe to call on every boot.
 # ---------------------------------------------------------------------------
-from src.database import init_db, db_create_user, db_get_user_by_email
+from src.database import init_db, db_create_user, db_get_user_by_email, DATABASE_URL
 
-init_db()
+print(f"[boot] DATABASE_URL set: {bool(DATABASE_URL)}")
+if DATABASE_URL:
+    # Mask password for safe logging
+    safe_url = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else "(set)"
+    print(f"[boot] Connecting to Postgres at {safe_url}")
+else:
+    print("[boot] Using SQLite (local dev mode)")
+
+try:
+    init_db()
+    print("[boot] Database tables ready")
+except Exception as exc:
+    print(f"[boot] CRITICAL: Database init failed: {exc}", flush=True)
+    raise
 
 
 # ---------------------------------------------------------------------------
@@ -63,8 +76,12 @@ def _seed_users_from(source_dir: Path) -> None:
             print(f"[seed] Skipping {user_dir.name}: {exc}")
 
 
-_seed_users_from(Path(_project_root) / "data" / "seed_users")
-_seed_users_from(Path(_project_root) / "users")
+try:
+    _seed_users_from(Path(_project_root) / "data" / "seed_users")
+    _seed_users_from(Path(_project_root) / "users")
+    print("[boot] User seeding complete")
+except Exception as exc:
+    print(f"[boot] Seed warning: {exc}", flush=True)
 
 # Import the Flask app — this triggers route registration
 from web_app import app
