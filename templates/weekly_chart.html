@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets.push({
                 label: t.name,
                 data: t.data,
+                teamNum: t.team_num,
                 backgroundColor: color + '70',
                 borderColor: color,
                 borderWidth: isUser ? 3 : 1.5,
@@ -119,10 +120,16 @@ document.addEventListener('DOMContentLoaded', function() {
                                 const raw = items[0].raw;
                                 if (raw === null || raw === undefined) return '';
                                 const wkLabel = items[0].label || '';
+                                const teamNum = items[0].dataset.teamNum;
+                                // Normalize the week key the same way the label
+                                // builder does (strips '_', 'manual ', 'sim ')
+                                const normWeek = function(w) {
+                                    return 'Wk ' + String(w).replace(/_/g, ' ').replace(/manual /g, '').replace(/sim /g, '');
+                                };
                                 // Find opponent and result
                                 const point = chartData.all_points?.find(p =>
-                                    p.team_num === parseInt(items[0].dataset.label) &&
-                                    'Wk ' + p.week === wkLabel
+                                    teamNum !== undefined && p.team_num === teamNum &&
+                                    normWeek(p.week) === wkLabel
                                 );
                                 if (point) {
                                     const lines = [];
@@ -312,7 +319,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     <!-- Weekly Data Table -->
     <details class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
-        <summary class="px-lg py-md bg-surface-container-high font-headline-md text-headline-md text-on-surface cursor-pointer hover:bg-surface-container-higher transition-colors flex items-center gap-sm">
+        <summary class="px-lg py-md bg-surface-container-high font-headline-md text-headline-md text-on-surface cursor-pointer hover:bg-surface-container-highest transition-colors flex items-center gap-sm">
             <span class="material-symbols-outlined text-outline" data-icon="expand_more">expand_more</span>
             Raw Scores by Week
         </summary>

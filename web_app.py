@@ -107,7 +107,12 @@ def login():
             session["user_email"] = user["email"]
             set_user_leagues_dir(user["email"])
             flash(f"Welcome back, {user['email']}!", "success")
-            return redirect(url_for("draft_room"))
+            # If the user has leagues, go to the draft room; otherwise send them
+            # straight to the leagues page so they don't get a confusing
+            # "no active league" error flash on top of the welcome message.
+            if list_leagues():
+                return redirect(url_for("draft_room"))
+            return redirect(url_for("leagues"))
         else:
             flash("Invalid email or password.", "error")
 

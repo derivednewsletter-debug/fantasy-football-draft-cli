@@ -5,6 +5,7 @@
 {% set is_user = league and league.is_user_on_clock %}
 {% set on_clock = league.team_on_clock if league else 1 %}
 {% set avail_count = league.available_players|length if league else 0 %}
+{% set board = league.available_players|sort(attribute='adp') if league else [] %}
 
 <!-- ===== ON THE CLOCK BANNER ===== -->
 <section class="p-lg grid grid-cols-1 md:grid-cols-12 gap-lg relative z-10">
@@ -75,7 +76,7 @@
             <!-- Body -->
             <div class="flex-1 overflow-y-auto custom-scrollbar" id="playerList">
                 {% if league and avail_count > 0 %}
-                    {% for player in league.available_players[:50] %}
+                    {% for player in board[:50] %}
                     {% set pos_class = {'QB': 'text-secondary-container', 'RB': 'text-secondary', 'WR': 'text-primary', 'TE': 'text-tertiary', 'K': 'text-on-surface-variant', 'DST': 'text-primary-fixed'}[player.position] %}
                     <div class="grid grid-cols-12 px-md py-sm items-center zebra-stripe border-b border-outline-variant/30 group hover:bg-surface-container-highest transition-colors player-row" data-name="{{ player.name }} {{ player.position }}" data-pos="{{ player.position }}">
                         <div class="col-span-1 font-data-numeral text-on-surface-variant">{{ loop.index }}</div>
@@ -96,7 +97,7 @@
                         <div class="col-span-1 text-center font-data-numeral text-on-surface text-sm">{{ "%.0f"|format(player.projected_points) }}</div>
                         <div class="col-span-3 text-right">
                             {% if is_user %}
-                            <button onclick="draftPlayer(this.dataset.player)" data-player="{{ player.name|e }}" class="bg-primary text-on-primary px-md py-sm rounded font-bold text-xs hover:opacity-80 transition-all opacity-0 group-hover:opacity-100 md:opacity-60 md:hover:opacity-100">
+                            <button onclick="draftPlayer(this.dataset.player)" data-player="{{ player.name|e }}" class="bg-primary text-on-primary px-md py-sm rounded font-bold text-xs hover:opacity-80 transition-all md:opacity-60 md:group-hover:opacity-100">
                                 DRAFT
                             </button>
                             {% endif %}
@@ -269,7 +270,7 @@
                list="playerSuggestions"/>
         <datalist id="playerSuggestions">
             {% if league %}
-            {% for p in league.available_players[:20] %}
+            {% for p in board[:20] %}
             <option value="{{ p.name }}">{{ p.position }} · {{ p.team }}</option>
             {% endfor %}
             {% endif %}
